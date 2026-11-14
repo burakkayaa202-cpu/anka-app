@@ -146,8 +146,8 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onPageStarted(WebView v, String url, android.graphics.Bitmap favicon) {
-                super.onPageStarted(v, url, favicon);
+            public void onPageStarted(WebView v, String url) {
+                super.onPageStarted(v, url);
                 if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
             }
 
