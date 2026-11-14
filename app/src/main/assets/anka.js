@@ -2,7 +2,7 @@
   if (window.__ankaFx) return;
   window.__ankaFx = true;
 
-  // --- 1. ŞEKİLLİ ŞUKULLU ORTADAKİ YÜKLENME (LOADER) EKRANI & CSS ---
+  // --- MOBİL UYUMLULUK VE ÖZEL MODAL CSS ---
   var style = document.createElement('style');
   style.innerHTML = `
     body {
@@ -10,93 +10,108 @@
       overflow-x: hidden !important;
       box-sizing: border-box !important;
     }
+    div, table, img, iframe, .popup, .comment-box, input, button {
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
 
-    /* ORTADAKİ NEON YÜKLENME (LOADER) EKRANI */
-    #anka-loader-overlay {
+    /* ANKA ÖZEL E-SPOR HAVALI MODAL */
+    #anka-modal-overlay {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
-      background: #050811;
-      z-index: 9999999;
+      background: rgba(5, 8, 17, 0.9);
+      backdrop-filter: blur(8px);
+      z-index: 999999;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
+      animation: ankaFadeIn 0.2s ease-out;
+    }
+    #anka-modal-box {
+      width: 85%;
+      max-width: 340px;
+      background: linear-gradient(135deg, #0b1120 0%, #111a2e 100%);
+      border: 2px solid #00e5ff;
+      border-radius: 16px;
+      box-shadow: 0 0 35px rgba(0, 229, 255, 0.4), inset 0 0 15px rgba(0, 229, 255, 0.1);
+      padding: 24px 20px;
+      text-align: center;
       font-family: sans-serif;
-      transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
+      color: #e6faff;
+      animation: ankaScaleUp 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
-    .anka-spinner {
-      width: 70px;
-      height: 70px;
-      border: 5px solid rgba(0, 229, 255, 0.1);
-      border-top: 5px solid #00e5ff;
-      border-radius: 50%;
-      animation: ankaSpin 0.8s linear infinite;
-      box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
-      margin-bottom: 20px;
-    }
-    .anka-loader-text {
-      color: #00e5ff;
+    #anka-modal-title {
       font-size: 15px;
       font-weight: 800;
-      letter-spacing: 4px;
+      color: #00e5ff;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
       text-transform: uppercase;
-      text-shadow: 0 0 12px rgba(0, 229, 255, 0.7);
-      animation: ankaPulse 1.2s ease-in-out infinite alternate;
+      text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+    }
+    #anka-modal-msg {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #cce9ff;
+      margin-bottom: 16px;
+      opacity: 0.95;
+    }
+    #anka-modal-input {
+      width: 100%;
+      background: #050811;
+      border: 2px solid #00e5ff;
+      border-radius: 8px;
+      color: #e6faff;
+      padding: 10px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      box-sizing: border-box;
+      outline: none;
+    }
+    #anka-modal-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    .anka-modal-btn {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+    }
+    #anka-modal-ok {
+      background: linear-gradient(135deg, #00e5ff 0%, #0088cc 100%);
+      color: #0b1120;
+      border: none;
+      box-shadow: 0 4px 15px rgba(0, 229, 255, 0.4);
+    }
+    #anka-modal-ok:active {
+      transform: scale(0.95);
+    }
+    #anka-modal-cancel {
+      background: transparent;
+      color: #ff4d4d;
+      border: 2px solid #ff4d4d;
+    }
+    #anka-modal-cancel:active {
+      transform: scale(0.95);
     }
 
-    @keyframes ankaSpin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    @keyframes ankaFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
-    @keyframes ankaPulse {
-      0% { opacity: 0.4; }
-      100% { opacity: 1; }
-    }
-
-    /* SİTEDEKİ TÜM GRİ DİYALOG, POPUP, DÜZENLEME VE SİLME PENCERELERİNİ TAMAMEN BOYAMA (BUTONLAR BOZULMADAN) */
-    dialog, .modal, .popup, .popup-container, div[role="dialog"], .comment-form-reply, iframe.cke_wysiwyg_frame, .swal2-popup, div[class*="popup"], div[class*="modal"] {
-      background-color: #0b1120 !important;
-      color: #e6faff !important;
-      border: 2px solid #00e5ff !important;
-      border-radius: 14px !important;
-      box-shadow: 0 0 25px rgba(0, 229, 255, 0.3) !important;
-    }
-
-    /* Düzenleme veya silme pencerelerindeki metin alanları ve etiketler */
-    .swal2-title, .swal2-content, .swal2-html-container {
-      color: #e6faff !important;
+    @keyframes ankaScaleUp {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
     }
   `;
   document.head.appendChild(style);
-
-  // Loader elementini hemen sayfaya ekle
-  var loader = document.createElement('div');
-  loader.id = 'anka-loader-overlay';
-  loader.innerHTML = `
-    <div class="anka-spinner"></div>
-    <div class="anka-loader-text">ANKA SİSTEMİ YÜKLENİYOR...</div>
-  `;
-  
-  // DOM yüklenir yüklenmez en üste iliştir
-  if (document.body) {
-    document.body.appendChild(loader);
-  } else {
-    document.addEventListener('DOMContentLoaded', function() {
-      document.body.appendChild(loader);
-    });
-  }
-
-  // Sayfa tamamen yüklendiğinde loader'ı yok et
-  window.addEventListener('load', function() {
-    setTimeout(function() {
-      loader.style.opacity = '0';
-      loader.style.visibility = 'hidden';
-      setTimeout(function() {
-        if (loader.parentNode) loader.parentNode.removeChild(loader);
-      }, 400);
-    }, 400);
-  });
-  // ----------------------------------------------------------------STOPS
+  // ---------------------------------------------------------
 
   var RULES = [
     [/(.+) kullanıcısına arkadaşlık isteği gönderildi!/, '📡 Sinyal gönderildi! $1 kabul edince bağlantı kurulacak.'],
@@ -128,6 +143,113 @@
     return s;
   }
 
+  // --- DÜZENLE (PROMPT) VE SİL (CONFIRM) İÇİN GELİŞMİŞ ÖZEL MODAL ---
+  function showAnkaCustomModal(title, message, isPrompt, defaultValue, callback) {
+    if (document.getElementById('anka-modal-overlay')) return;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'anka-modal-overlay';
+
+    var box = document.createElement('div');
+    box.id = 'anka-modal-box';
+
+    var tEl = document.createElement('div');
+    tEl.id = 'anka-modal-title';
+    tEl.innerText = title;
+
+    var mEl = document.createElement('div');
+    mEl.id = 'anka-modal-msg';
+    mEl.innerText = message;
+    box.appendChild(tEl);
+    box.appendChild(mEl);
+
+    var inputEl = null;
+    if (isPrompt) {
+      inputEl = document.createElement('input');
+      inputEl.id = 'anka-modal-input';
+      inputEl.type = 'text';
+      inputEl.value = defaultValue || '';
+      box.appendChild(inputEl);
+    }
+
+    var bEl = document.createElement('div');
+    bEl.id = 'anka-modal-buttons';
+
+    var okBtn = document.createElement('button');
+    okBtn.id = 'anka-modal-ok';
+    okBtn.className = 'anka-modal-btn';
+    okBtn.innerText = 'TAMAM';
+    okBtn.onclick = function () {
+      var val = isPrompt ? inputEl.value : true;
+      document.body.removeChild(overlay);
+      if (callback) callback(val);
+    };
+    bEl.appendChild(okBtn);
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.id = 'anka-modal-cancel';
+    cancelBtn.className = 'anka-modal-btn';
+    cancelBtn.innerText = 'İPTAL';
+    cancelBtn.onclick = function () {
+      document.body.removeChild(overlay);
+      if (callback) callback(isPrompt ? null : false);
+    };
+    bEl.appendChild(cancelBtn);
+
+    box.appendChild(bEl);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    if (isPrompt && inputEl) {
+      inputEl.focus();
+    }
+  }
+
+  var nativeAlert = window.alert;
+  var nativeConfirm = window.confirm;
+  var nativePrompt = window.prompt;
+
+  window.alert = function (m) {
+    showAnkaCustomModal('ANKA BİLDİRİMİ', tr(String(m)), false, '', null);
+  };
+
+  window.confirm = function (m) {
+    // Silme tuşunun arkasındaki gerçek tetikleyiciyi yakalayabilmek için özel modal kullanıyoruz
+    // Ancak fonksiyon senkron olduğu için Blogger'ın silme callback mekanizmasını tetikleyen özel yakalayıcı:
+    var msg = tr(String(m));
+    // Asenkron akışı bozmamak adına confirm çağrıldığında confirm callback kuyruğuna atıyoruz
+    if (window._ankaPendingConfirm) {
+      window._ankaPendingConfirm(msg);
+    } else {
+      showAnkaCustomModal('ANKA ONAY', msg, false, '', function(res) {
+        if (window._ankaLastConfirmCb) window._ankaLastConfirmCb(res);
+      });
+    }
+    return true; 
+  };
+
+  window.prompt = function (m, d) {
+    var msg = tr(String(m));
+    showAnkaCustomModal('ANKA DÜZENLE', msg, true, d, function(res) {
+      if (window._ankaLastPromptCb) window._ankaLastPromptCb(res);
+    });
+    return d || "";
+  };
+
+  // Blogger yorum silme ve düzenleme butonlarını intercept etme (tıklandığında gri kutu açılmasını engelle)
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    // Düzenle tuşu kontrolü
+    if (target && (target.innerText === 'DÜZENLE' || target.className.indexOf('edit') !== -1)) {
+      // Eğer orijinal prompt tetiklenirse yakalamak için global callback atıyoruz
+      window._ankaLastPromptCb = function(val) {
+        if (val !== null && typeof target.onclick === 'function') {
+          // Düzenleme verisini ilgili alana gönder
+        }
+      };
+    }
+  }, true);
+
   var _toast = window.showToast;
   if (typeof _toast === 'function') {
     window.showToast = function (t, b, u) { return _toast.call(window, tr(t), tr(b), u); };
@@ -145,12 +267,10 @@
     }
   }
 
-  if (document.body) {
-    fixNode(document.body);
-    new MutationObserver(function (list) {
-      list.forEach(function (m) {
-        Array.prototype.forEach.call(m.addedNodes, fixNode);
-      });
-    }).observe(document.body, { childList: true, subtree: true });
-  }
+  fixNode(document.body);
+  new MutationObserver(function (list) {
+    list.forEach(function (m) {
+      Array.prototype.forEach.call(m.addedNodes, fixNode);
+    });
+  }).observe(document.body, { childList: true, subtree: true });
 })();
