@@ -84,18 +84,18 @@
       text-transform: uppercase;
     }
     #anka-modal-ok {
-      background: linear-gradient(135deg, #00e5ff 0%, #0088cc 100%);
-      color: #0b1120;
+      background: linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%);
+      color: #ffffff;
       border: none;
-      box-shadow: 0 4px 15px rgba(0, 229, 255, 0.4);
+      box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4);
     }
     #anka-modal-ok:active {
       transform: scale(0.95);
     }
     #anka-modal-cancel {
       background: transparent;
-      color: #ff4d4d;
-      border: 2px solid #ff4d4d;
+      color: #00e5ff;
+      border: 2px solid #00e5ff;
     }
     #anka-modal-cancel:active {
       transform: scale(0.95);
@@ -143,8 +143,8 @@
     return s;
   }
 
-  // --- DÜZENLE (PROMPT) VE SİL (CONFIRM) İÇİN GELİŞMİŞ ÖZEL MODAL ---
-  function showAnkaCustomModal(title, message, isPrompt, defaultValue, callback) {
+  // --- ÖZEL MODAL YÖNETİCİSİ (SİL / KAPAT) ---
+  function showAnkaConfirmModal(title, message, callback) {
     if (document.getElementById('anka-modal-overlay')) return;
 
     var overlay = document.createElement('div');
@@ -163,14 +163,54 @@
     box.appendChild(tEl);
     box.appendChild(mEl);
 
-    var inputEl = null;
-    if (isPrompt) {
-      inputEl = document.createElement('input');
-      inputEl.id = 'anka-modal-input';
-      inputEl.type = 'text';
-      inputEl.value = defaultValue || '';
-      box.appendChild(inputEl);
-    }
+    var bEl = document.createElement('div');
+    bEl.id = 'anka-modal-buttons';
+
+    // SİL Butonu (Onaylar -> true döner)
+    var okBtn = document.createElement('button');
+    okBtn.id = 'anka-modal-ok';
+    okBtn.className = 'anka-modal-btn';
+    okBtn.innerText = 'SİL';
+    okBtn.onclick = function () {
+      document.body.removeChild(overlay);
+      callback(true);
+    };
+    bEl.appendChild(okBtn);
+
+    // KAPAT Butonu (İptal eder -> false döner)
+    var cancelBtn = document.createElement('button');
+    cancelBtn.id = 'anka-modal-cancel';
+    cancelBtn.className = 'anka-modal-btn';
+    cancelBtn.innerText = 'KAPAT';
+    cancelBtn.onclick = function () {
+      document.body.removeChild(overlay);
+      callback(false);
+    };
+    bEl.appendChild(cancelBtn);
+
+    box.appendChild(bEl);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+
+  function showAnkaAlertModal(title, message) {
+    if (document.getElementById('anka-modal-overlay')) return;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'anka-modal-overlay';
+
+    var box = document.createElement('div');
+    box.id = 'anka-modal-box';
+
+    var tEl = document.createElement('div');
+    tEl.id = 'anka-modal-title';
+    tEl.innerText = title;
+
+    var mEl = document.createElement('div');
+    mEl.id = 'anka-modal-msg';
+    mEl.innerText = message;
+    box.appendChild(tEl);
+    box.appendChild(mEl);
 
     var bEl = document.createElement('div');
     bEl.id = 'anka-modal-buttons';
@@ -178,75 +218,67 @@
     var okBtn = document.createElement('button');
     okBtn.id = 'anka-modal-ok';
     okBtn.className = 'anka-modal-btn';
+    okBtn.style.background = 'linear-gradient(135deg, #00e5ff 0%, #0088cc 100%)';
+    okBtn.style.color = '#0b1120';
     okBtn.innerText = 'TAMAM';
     okBtn.onclick = function () {
-      var val = isPrompt ? inputEl.value : true;
       document.body.removeChild(overlay);
-      if (callback) callback(val);
     };
     bEl.appendChild(okBtn);
-
-    var cancelBtn = document.createElement('button');
-    cancelBtn.id = 'anka-modal-cancel';
-    cancelBtn.className = 'anka-modal-btn';
-    cancelBtn.innerText = 'İPTAL';
-    cancelBtn.onclick = function () {
-      document.body.removeChild(overlay);
-      if (callback) callback(isPrompt ? null : false);
-    };
-    bEl.appendChild(cancelBtn);
 
     box.appendChild(bEl);
     overlay.appendChild(box);
     document.body.appendChild(overlay);
-
-    if (isPrompt && inputEl) {
-      inputEl.focus();
-    }
   }
 
-  var nativeAlert = window.alert;
   var nativeConfirm = window.confirm;
-  var nativePrompt = window.prompt;
 
   window.alert = function (m) {
-    showAnkaCustomModal('ANKA BİLDİRİMİ', tr(String(m)), false, '', null);
+    showAnkaAlertModal('ANKA BİLDİRİMİ', tr(String(m)));
   };
 
+  // Blogger onay mekanizmasını tamamen yakalayan override
   window.confirm = function (m) {
-    // Silme tuşunun arkasındaki gerçek tetikleyiciyi yakalayabilmek için özel modal kullanıyoruz
-    // Ancak fonksiyon senkron olduğu için Blogger'ın silme callback mekanizmasını tetikleyen özel yakalayıcı:
+    // Burada orijinal confirm fonksiyonunu sarmalıyoruz
+    // Ancak JavaScript senkron çalıştığı için confirm doğrudan true/false bekler.
+    // Çözüm olarak kullanıcıya özel modal gösterip kararına göre orijinal confirm tetikleyicisini simüle ediyoruz:
     var msg = tr(String(m));
-    // Asenkron akışı bozmamak adına confirm çağrıldığında confirm callback kuyruğuna atıyoruz
-    if (window._ankaPendingConfirm) {
-      window._ankaPendingConfirm(msg);
-    } else {
-      showAnkaCustomModal('ANKA ONAY', msg, false, '', function(res) {
-        if (window._ankaLastConfirmCb) window._ankaLastConfirmCb(res);
-      });
-    }
-    return true; 
-  };
-
-  window.prompt = function (m, d) {
-    var msg = tr(String(m));
-    showAnkaCustomModal('ANKA DÜZENLE', msg, true, d, function(res) {
-      if (window._ankaLastPromptCb) window._ankaLastPromptCb(res);
-    });
-    return d || "";
-  };
-
-  // Blogger yorum silme ve düzenleme butonlarını intercept etme (tıklandığında gri kutu açılmasını engelle)
-  document.addEventListener('click', function(e) {
-    var target = e.target;
-    // Düzenle tuşu kontrolü
-    if (target && (target.innerText === 'DÜZENLE' || target.className.indexOf('edit') !== -1)) {
-      // Eğer orijinal prompt tetiklenirse yakalamak için global callback atıyoruz
-      window._ankaLastPromptCb = function(val) {
-        if (val !== null && typeof target.onclick === 'function') {
-          // Düzenleme verisini ilgili alana gönder
+    
+    // Eğer confirm daha önce tetiklenmediyse özel modal aç
+    if (!window._ankaInConfirm) {
+      window._ankaInConfirm = true;
+      showAnkaConfirmModal('ANKA ONAY', msg, function(result) {
+        window._ankaInConfirm = false;
+        if (result) {
+          // Kullanıcı SİL tuşuna bastı, sayfadaki silme fonksiyonunu tetiklemek için onay veriyoruz
+          // Onay onaylandı bayrağı ile orijinal akışı tetikle
+          window._ankaForceTrue = true;
+          // Silme işlemini yapan DOM elementini veya tetikleyiciyi tekrar tetikle
+          if (window._ankaTargetDeleteBtn) {
+            var btn = window._ankaTargetDeleteBtn;
+            window._ankaTargetDeleteBtn = null;
+            // Orijinal click olayını tekrar güvenle tetikle
+            var ev = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+            btn.dispatchEvent(ev);
+          }
         }
-      };
+      });
+      return false; // İlk etapta engelle ki hemen silmesin
+    }
+
+    if (window._ankaForceTrue) {
+      window._ankaForceTrue = false;
+      return true; // SİL tuşuna basıldıysa silmeye izin ver
+    }
+
+    return false; // KAPAT tuşuna basıldıysa kesinlikle silme!
+  };
+
+  // Silme butonuna tıklandığında hedefi hafızaya alıyoruz
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    if (t && (t.innerText === 'SİL' || t.className.indexOf('delete') !== -1 || t.getAttribute('title') === 'Sil')) {
+      window._ankaTargetDeleteBtn = t;
     }
   }, true);
 
