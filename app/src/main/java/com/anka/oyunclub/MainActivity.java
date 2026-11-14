@@ -2,7 +2,6 @@ package com.anka.oyunclub;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
@@ -18,18 +17,41 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
+import android.widget.Toast;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 public class MainActivity extends Activity {
     private static final String SITE = "https://ankaoyunclub.blogspot.com";
     private static final int PICK = 1;
+    private FrameLayout root;
     private WebView web;
-    private ProgressBar bar;
     private FrameLayout splash;
     private ValueCallback<Uri[]> filePathCallback;
+    private View customView;
+    private WebChromeClient.CustomViewCallback customCallback;
+    private long lastBack = 0;
+    private String fxJs = null;
 
     private int dp(int n) {
         return (int) (n * getResources().getDisplayMetrics().density);
+    }
+
+    private String loadFx() {
+        if (fxJs != null) return fxJs;
+        try {
+            InputStream in = getAssets().open("anka.js");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            in.close();
+            fxJs = out.toString("UTF-8");
+        } catch (Exception e) {
+            fxJs = "";
+        }
+        return fxJs;
     }
 
     private void hideSplash() {
@@ -48,9 +70,19 @@ public class MainActivity extends Activity {
             + "p{opacity:.8;line-height:1.5}"
             + "button{margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;"
             + "background:transparent;color:#00e5ff;font-size:16px;font-weight:bold}</style></head>"
-            + "<body><h1>ANKA APK</h1><p>İnternet bağlantısı yok.<br>Bağlantını kontrol edip tekrar dene.</p>"
-            + "<button onclick=\"location.href='" + SITE + "'\">Tekrar Dene</button></body></html>";
+            + "<body><h1>ANKA APK</h1><p>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>"
+            + "<button onclick=\"location.href='" + SITE + "'\">Yeniden Bağlan</button></body></html>";
         web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
+    }
+
+    private void leaveFullscreen() {
+        if (customView == null) return;
+        root.removeView(customView);
+        customView = null;
+        web.setVisibility(View.VISIBLE);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        if (customCallback != null) customCallback.onCustomViewHidden();
+        customCallback = null;
     }
 
     @Override
@@ -60,18 +92,11 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(dark);
         getWindow().setNavigationBarColor(dark);
         getWindow().setBackgroundDrawable(new ColorDrawable(dark));
-        getWindow().getDecorView().setSystemUiVisibility(0);
 
-        FrameLayout root = new FrameLayout(this);
+        root = new FrameLayout(this);
         web = new WebView(this);
         web.setBackgroundColor(dark);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
-
-        bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        bar.setMax(100);
-        bar.setProgressTintList(ColorStateList.valueOf(Color.parseColor("#00E5FF")));
-        bar.setVisibility(View.GONE);
-        root.addView(bar, new FrameLayout.LayoutParams(-1, dp(3)));
 
         splash = new FrameLayout(this);
         splash.setBackgroundColor(dark);
@@ -86,6 +111,7 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(true);
         s.setLoadsImagesAutomatically(true);
+        s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
         web.setDownloadListener((url, ua, cd, mime, len) ->
@@ -94,14 +120,23 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
-                String host = r.getUrl().getHost();
-                if (host != null && host.endsWith("blogspot.com")) return false;
-                startActivity(new Intent(Intent.ACTION_VIEW, r.getUrl()));
+                Uri u = r.getUrl();
+                String scheme = u.getScheme();
+                String host = u.getHost();
+                boolean isWeb = "http".equals(scheme) || "https".equals(scheme);
+                if (isWeb && host != null && host.endsWith("blogspot.com")) return false;
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, u));
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Bu bağlantıyı açacak uygulama bulunamadı", Toast.LENGTH_SHORT).show();
+                }
                 return true;
             }
 
             @Override
             public void onPageFinished(WebView v, String url) {
+                String js = loadFx();
+                if (!js.isEmpty()) v.evaluateJavascript(js, null);
                 hideSplash();
             }
 
@@ -112,12 +147,6 @@ public class MainActivity extends Activity {
         });
 
         web.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onProgressChanged(WebView v, int p) {
-                bar.setProgress(p);
-                bar.setVisibility(p < 100 ? View.VISIBLE : View.GONE);
-            }
-
             @Override
             public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 if (filePathCallback != null) filePathCallback.onReceiveValue(null);
@@ -130,9 +159,31 @@ public class MainActivity extends Activity {
                 }
                 return true;
             }
+
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback cb) {
+                if (customView != null) {
+                    cb.onCustomViewHidden();
+                    return;
+                }
+                customView = view;
+                customCallback = cb;
+                root.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                web.setVisibility(View.GONE);
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            }
+
+            @Override
+            public void onHideCustomView() {
+                leaveFullscreen();
+            }
         });
 
         if (b == null) web.loadUrl(SITE); else web.restoreState(b);
+        web.postDelayed(this::hideSplash, 6000);
     }
 
     @Override
@@ -150,6 +201,18 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        web.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        web.onResume();
+    }
+
+    @Override
     protected void onSaveInstanceState(Bundle o) {
         super.onSaveInstanceState(o);
         web.saveState(o);
@@ -157,6 +220,15 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web.canGoBack()) web.goBack(); else super.onBackPressed();
+        if (customView != null) {
+            leaveFullscreen();
+        } else if (web.canGoBack()) {
+            web.goBack();
+        } else if (System.currentTimeMillis() - lastBack < 2000) {
+            super.onBackPressed();
+        } else {
+            lastBack = System.currentTimeMillis();
+            Toast.makeText(this, "Anka'dan ayrılıyor musun? Çıkmak için bir kez daha geri bas", Toast.LENGTH_SHORT).show();
+        }
     }
 }
