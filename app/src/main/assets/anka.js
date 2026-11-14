@@ -131,22 +131,83 @@
     return s;
   }
 
-  // Güvenli Alert (Bildirim)
-  window.alert = function (m) {
+  // Özel Onay Modalı (SİL / KAPAT)
+  function showAnkaConfirm(msg, onConfirm) {
+    if (document.getElementById('anka-modal-overlay')) return;
+    var overlay = document.createElement('div');
+    overlay.id = 'anka-modal-overlay';
+    overlay.innerHTML = `
+      <div id="anka-modal-box">
+        <div id="anka-modal-title">ANKA ONAY</div>
+        <div id="anka-modal-msg">${tr(msg)}</div>
+        <div id="anka-modal-buttons">
+          <button id="anka-modal-ok" class="anka-modal-btn">SİL</button>
+          <button id="anka-modal-cancel" class="anka-modal-btn">KAPAT</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    document.getElementById('anka-modal-ok').onclick = function() {
+      document.body.removeChild(overlay);
+      onConfirm(true);
+    };
+    document.getElementById('anka-modal-cancel').onclick = function() {
+      document.body.removeChild(overlay);
+      onConfirm(false);
+    };
+  }
+
+  // Özel Bildirim Modalı (TAMAM)
+  function showAnkaAlert(msg) {
     if (document.getElementById('anka-modal-overlay')) return;
     var overlay = document.createElement('div');
     overlay.id = 'anka-modal-overlay';
     overlay.innerHTML = `
       <div id="anka-modal-box">
         <div id="anka-modal-title">ANKA BİLDİRİMİ</div>
-        <div id="anka-modal-msg">${tr(String(m))}</div>
+        <div id="anka-modal-msg">${tr(msg)}</div>
         <div id="anka-modal-buttons">
           <button id="anka-modal-ok" class="anka-modal-btn" style="background:linear-gradient(135deg, #00e5ff 0%, #0088cc 100%); color:#0b1120;">TAMAM</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
-    document.getElementById('anka-modal-ok').onclick = function() { document.body.removeChild(overlay); };
+    document.getElementById('anka-modal-ok').onclick = function() {
+      document.body.removeChild(overlay);
+    };
+  }
+
+  window.alert = function(m) { showAnkaAlert(m); };
+
+  // Blogger'ın silme onayını güvenli bir şekilde yakalıyoruz
+  var originalConfirm = window.confirm;
+  window.confirm = function(m) {
+    var msg = String(m);
+    if (msg.indexOf('sil') !== -1 || msg.indexOf('Yorum') !== -1 || msg.indexOf('emin') !== -1) {
+      // Senkron engellemeyi bypass edip kendi modalımızı tetikliyoruz
+      // Silme işlemi için event bazlı yakalamaya yönlendiriyoruz
+      return window._ankaAllowedDelete === true;
+    }
+    return originalConfirm ? originalConfirm.call(window, m) : true;
   };
+
+  // Sil tuşuna tıklandığında Blogger'ın orijinal confirm'ini bizim modal ile değiştiriyoruz
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    if (t && (t.innerText === 'SİL' || t.className.indexOf('delete') !== -1 || t.getAttribute('title') === 'Sil')) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      showAnkaConfirm('Bu yorumu silmek istediğine emin misin?', function(confirmed) {
+        if (confirmed) {
+          window._ankaAllowedDelete = true;
+          // Orijinal tıklama eylemini güvenle yeniden tetikle
+          t.click();
+          setTimeout(function() { window._ankaAllowedDelete = false; }, 500);
+        }
+      });
+    }
+  }, true);
 
   var _toast = window.showToast;
   if (typeof _toast === 'function') {
