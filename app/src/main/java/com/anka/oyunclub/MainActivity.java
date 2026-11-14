@@ -185,10 +185,10 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public boolean onShowCustomView(View view, CustomViewCallback cb) {
+            public void onShowCustomView(View view, CustomViewCallback cb) {
                 if (customView != null) {
                     cb.onCustomViewHidden();
-                    return true; // DÜZELTME: return eklendi
+                    return;
                 }
                 customView = view;
                 customCallback = cb;
@@ -198,7 +198,6 @@ public class MainActivity extends Activity {
                     View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-                return true; // DÜZELTME: return eklendi
             }
 
             @Override
@@ -249,7 +248,7 @@ public class MainActivity extends Activity {
             leaveFullscreen();
         } else if (web.canGoBack()) {
             web.goBack();
-        } else if (System.currentTimeMillis() - lastBack < 2000) {
+        } else.if (System.currentTimeMillis() - lastBack < 2000) {
             super.onBackPressed();
         } else {
             lastBack = System.currentTimeMillis();
