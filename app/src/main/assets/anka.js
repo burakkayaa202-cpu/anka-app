@@ -183,13 +183,25 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams params) {
-                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                if (filePathCallback != null) {
+                    filePathCallback.onReceiveValue(null);
+                    filePathCallback = null;
+                }
                 filePathCallback = cb;
                 try {
-                    startActivityForResult(params.createIntent(), PICK);
+                    Intent intent = params.createIntent();
+                    startActivityForResult(intent, PICK);
                 } catch (Exception e) {
-                    filePathCallback = null;
-                    return false;
+                    try {
+                        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                        i.addCategory(Intent.CATEGORY_OPENABLE);
+                        i.setType("*/*");
+                        startActivityForResult(Intent.createChooser(i, "Dosya Seç"), PICK);
+                    } catch (Exception ex) {
+                        filePathCallback.onReceiveValue(null);
+                        filePathCallback = null;
+                        return false;
+                    }
                 }
                 return true;
             }
@@ -222,10 +234,22 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
-        if (req == PICK && filePathCallback != null) {
+        if (req == PICK) {
+            if (filePathCallback == null) return;
             Uri[] result = null;
-            if (res == RESULT_OK && data != null) {
-                result = WebChromeClient.FileChooserParams.parseResult(res, data);
+            if (res == RESULT_OK) {
+                if (data != null) {
+                    String dataString = data.getDataString();
+                    if (dataString != null) {
+                        result = new Uri[]{Uri.parse(dataString)};
+                    } else if (data.getClipData() != null) {
+                        int count = data.getClipData().getItemCount();
+                        result = new Uri[count];
+                        for (int i = 0; i < count; i++) {
+                            result[i] = data.getClipData().getItemAt(i).getUri();
+                        }
+                    }
+                }
             }
             filePathCallback.onReceiveValue(result);
             filePathCallback = null;
@@ -265,4 +289,4 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Anka'dan ayrılıyor musun? Çıkmak için bir kez daha geri bas", Toast.LENGTH_SHORT).show();
         }
     }
-                }
+}
