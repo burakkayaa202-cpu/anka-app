@@ -63,16 +63,11 @@ public class MainActivity extends Activity {
     }
 
     private void showOffline() {
-        String html = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
-            + "<style>body{margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;"
-            + "justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;"
-            + "text-align:center;padding:24px;box-sizing:border-box}"
-            + "h1{color:#00e5ff;letter-spacing:2px;text-shadow:0 0 12px #00e5ff}"
-            + "p{opacity:.8;line-height:1.5}"
-            + "button{margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;"
-            + "background:transparent;color:#00e5ff;font-size:16px;font-weight:bold}</style></head>"
-            + "<body><h1>ANKA APK</h1><p>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>"
-            + "<button onclick=\"location.href='" + SITE + "'\">Yeniden Bağlan</button></body></html>";
+        String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
+        html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
+        html += "<p style='opacity:.8;'>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>";
+        html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;'>Yeniden Bağlan</button>";
+        html += "</body></html>";
         web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
     }
 
@@ -115,7 +110,6 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         
-        // Tasarım bozulmalarını önleyen ölçekleme ayarları
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
