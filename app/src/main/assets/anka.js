@@ -9,7 +9,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
-import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -57,7 +56,7 @@ public class MainActivity extends Activity {
     }
 
     private void hideSplash() {
-        if (splash != null && splash.getVisibility() == View.VISIBLE) {
+        if (splash.getVisibility() == View.VISIBLE) {
             splash.animate().alpha(0f).setDuration(300)
                 .withEndAction(() -> splash.setVisibility(View.GONE));
         }
@@ -67,7 +66,7 @@ public class MainActivity extends Activity {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
         html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
         html += "<p style='opacity:.8;'>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>";
-        html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;cursor:pointer;'>Yeniden Bağlan</button>";
+        html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;'>Yeniden Bağlan</button>";
         html += "</body></html>";
         web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
     }
@@ -116,11 +115,6 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
-        // Yorumların ve oturumların düzgün çalışabilmesi için çerez (cookie) yönetimi aktif edildi
-        CookieManager cookieManager = CookieManager.getInstance();
-        cookieManager.setAcceptCookie(true);
-        cookieManager.setAcceptThirdPartyCookies(web, true);
-
         // Güvenli İndirme Yöneticisi
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             try {
@@ -152,19 +146,14 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String url) {
-                // Yorum düzenleme/silme ve neon elementleri tetikleyen anka.js güvenle enjekte edilir
                 String js = loadFx();
-                if (js != null && !js.isEmpty()) {
-                    v.evaluateJavascript(js, null);
-                }
+                if (!js.isEmpty()) v.evaluateJavascript(js, null);
                 hideSplash();
             }
 
             @Override
             public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
-                if (r != null && r.isForMainFrame()) {
-                    showOffline();
-                }
+                if (r.isForMainFrame()) showOffline();
             }
         });
 
@@ -192,15 +181,28 @@ public class MainActivity extends Activity {
                 return true;
             }
 
+            // --- BURASI DÜZELTİLDİ: Foto, video ve dosya seçme (File Chooser) mekanizması ---
             @Override
             public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams params) {
-                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                if (filePathCallback != null) {
+                    filePathCallback.onReceiveValue(null);
+                }
                 filePathCallback = cb;
                 try {
-                    startActivityForResult(params.createIntent(), PICK);
+                    Intent intent = params.createIntent();
+                    startActivityForResult(intent, PICK);
                 } catch (Exception e) {
-                    filePathCallback = null;
-                    return false;
+                    // Eğer özel intent başlatılamazsa genel dosya/galeri seçiciye düş (fallback)
+                    try {
+                        Intent fallbackIntent = new Intent(Intent.ACTION_GET_CONTENT);
+                        fallbackIntent.addCategory(Intent.CATEGORY_OPENABLE);
+                        fallbackIntent.setType("*/*");
+                        startActivityForResult(Intent.createChooser(fallbackIntent, "Dosya Seç"), PICK);
+                    } catch (Exception ex) {
+                        filePathCallback = null;
+                        Toast.makeText(MainActivity.this, "Dosya seçici açılamadı!", Toast.LENGTH_SHORT).show();
+                        return false;
+                    }
                 }
                 return true;
             }
@@ -227,22 +229,30 @@ public class MainActivity extends Activity {
             }
         });
 
-        if (b == null) {
-            web.loadUrl(SITE);
-        } else {
-            web.restoreState(b);
-        }
+        if (b == null) web.loadUrl(SITE); else web.restoreState(b);
         web.postDelayed(this::hideSplash, 6000);
     }
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
-        if (req == PICK && filePathCallback != null) {
-            Uri[] result = null;
-            if (res == RESULT_OK && data != null) {
-                result = WebChromeClient.FileChooserParams.parseResult(res, data);
+        if (req == PICK) {
+            if (filePathCallback == null) return;
+            Uri[] results = null;
+            if (res == RESULT_OK) {
+                if (data != null) {
+                    String dataString = data.getDataString();
+                    if (dataString != null) {
+                        results = new Uri[]{Uri.parse(dataString)};
+                    } else if (data.getClipData() != null) {
+                        int count = data.getClipData().getItemCount();
+                        results = new Uri[count];
+                        for (int i = 0; i < count; i++) {
+                            results[i] = data.getClipData().getItemAt(i).getUri();
+                        }
+                    }
+                }
             }
-            filePathCallback.onReceiveValue(result);
+            filePathCallback.onReceiveValue(results);
             filePathCallback = null;
         } else {
             super.onActivityResult(req, res, data);
