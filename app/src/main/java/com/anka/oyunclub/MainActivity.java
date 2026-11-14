@@ -113,6 +113,10 @@ public class MainActivity extends Activity {
         s.setLoadsImagesAutomatically(true);
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        
+        // Tasarım bozukluklarını ve taşmaları önleyen ölçekleme ayarları eklendi:
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(true);
 
         web.setDownloadListener((url, ua, cd, mime, len) ->
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))));
