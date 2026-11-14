@@ -20,8 +20,6 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import androidx.activity.OnBackPressedCallback;
-
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
@@ -52,7 +50,7 @@ public class MainActivity extends Activity {
             in.close();
             fxJs = out.toString("UTF-8");
         } catch (Exception e) {
-            fxJs = ""; // assets içinde anka.js yoksa çökme önlenir
+            fxJs = ""; // anka.js bulunamazsa çökme önlenir
         }
         return fxJs;
     }
@@ -66,9 +64,9 @@ public class MainActivity extends Activity {
 
     private void showOffline() {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
-        html += "<h1 style='color:#00e5ff;letter-spacing:2px;text-shadow:0 0 10px rgba(0,229,255,0.5);'>ANKA APK</h1>";
+        html += "<h1 style='color:#00e5ff;letter-spacing:2px;text-shadow:0 0 10px rgba(0,229,255,0.4);'>ANKA APK</h1>";
         html += "<p style='opacity:.8;'>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>";
-        html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;cursor:pointer;box-shadow:0 0 15px rgba(0,229,255,0.3);'>Yeniden Bağlan</button>";
+        html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;cursor:pointer;'>Yeniden Bağlan</button>";
         html += "</body></html>";
         web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
     }
@@ -148,7 +146,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String url) {
-                // assets/anka.js (Neon temalar, yorum düzenleme/silme fonksiyonları vb. çalıştırılır)
+                // anka.js içerisindeki neon stiller, yorum düzenleme ve silme fonksiyonları yüklenir
                 String js = loadFx();
                 if (js != null && !js.isEmpty()) {
                     v.evaluateJavascript(js, null);
@@ -195,11 +193,10 @@ public class MainActivity extends Activity {
                 }
                 filePathCallback = cb;
                 try {
-                    Intent intent = params.createIntent();
-                    startActivityForResult(intent, PICK);
+                    startActivityForResult(params.createIntent(), PICK);
                 } catch (Exception e) {
                     filePathCallback = null;
-                    Toast.makeText(MainActivity.this, "Dosya seçici açılamadı", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.->this, "Dosya seçici açılamadı", Toast.LENGTH_SHORT).show(); // Düzeltildi
                     return false;
                 }
                 return true;
@@ -227,43 +224,23 @@ public class MainActivity extends Activity {
             }
         });
 
-        // Modern Geri Tuşu Yönetimi (OnBackPressedDispatcher)
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                if (customView != `null` && customView != null) {
-                    leaveFullscreen();
-                } else if (web.canGoBack()) {
-                    web.goBack();
-                } else if (System.currentTimeMillis() - lastBack < 2000) {
-                    finish();
-                } else {
-                    last`lastBack` = System.currentTimeMillis();
-                    Toast.makeText(MainActivity.this, "Anka'dan ayrılıyor musun? Çıkmak için bir kez daha geri bas", Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
-
         if (b == null) {
             web.loadUrl(SITE);
         } else {
             web.restoreState(b);
         }
-        
         web.postDelayed(this::hideSplash, 6000);
     }
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
-        if (req == PICK) {
-            if (filePathCallback != null) {
-                Uri[] result = null;
-                if (res == RESULT_OK && data != null) {
-                    result = WebChromeClient.FileChooserParams.parseResult(res, data);
-                }
-                filePathCallback.onReceiveValue(result);
-                filePathCallback = null;
+        if (req == PICK && filePathCallback != null) {
+            Uri[] result = null;
+            if (res == RESULT_OK && data != null) {
+                result = WebChromeClient.FileChooserParams.parseResult(res, data);
             }
+            filePathCallback.onReceiveValue(result);
+            filePathCallback = null;
         } else {
             super.onActivityResult(req, res, data);
         }
@@ -285,5 +262,19 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle o) {
         super.onSaveInstanceState(o);
         web.saveState(o);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (customView != null) {
+            leaveFullscreen();
+        } else if (web.canGoBack()) {
+            web.goBack();
+        } else if (System.currentTimeMillis() - lastBack < 2000) {
+            super.onBackPressed();
+        } else {
+            lastBack = System.currentTimeMillis();
+            Toast.makeText(this, "Anka'dan ayrılıyor musun? Çıkmak için bir kez daha geri bas", Toast.LENGTH_SHORT).show();
+        }
     }
 }
