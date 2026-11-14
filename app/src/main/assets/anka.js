@@ -2,7 +2,7 @@
   if (window.__ankaFx) return;
   window.__ankaFx = true;
 
-  // --- MOBİL UYUMLULUK VE TÜM GRI KUTULARI YOK EDEN CSS ENJEKSİYONU ---
+  // --- 1. ŞEKİLLİ ŞUKULLU ORTADAKİ YÜKLENME (LOADER) EKRANI & CSS ---
   var style = document.createElement('style');
   style.innerHTML = `
     body {
@@ -15,99 +15,86 @@
       box-sizing: border-box !important;
     }
 
-    /* TARAYICI VE SİSTEM GİRİ KUTULARI İÇİN TÜM DİYALOG STİLLERİNİ EZME */
-    dialog, .modal, .popup-container, div[role="dialog"] {
+    /* ORTADAKİ NEON YÜKLENME (LOADER) EKRANI */
+    #anka-loader-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #050811;
+      z-index: 9999999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: sans-serif;
+      transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
+    }
+    .anka-spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(0, 229, 255, 0.1);
+      border-top: 4px solid #00e5ff;
+      border-radius: 50%;
+      animation: ankaSpin 0.8s linear infinite;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.5);
+      margin-bottom: 20px;
+    }
+    .anka-loader-text {
+      color: #00e5ff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
+      animation: ankaPulse 1.2s ease-in-out infinite alternate;
+    }
+
+    @keyframes ankaSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes ankaPulse {
+      0% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    /* SİTEDEKİ TÜM GRİ DİYALOG, POPUP VE DÜZENLEME PENCERELERİNİ TAMAMEN BOYAMA (SİL / DÜZENLE BOZULMAZ) */
+    dialog, .modal, .popup, .popup-container, div[role="dialog"], .comment-form-reply, iframe.cke_wysiwyg_frame {
+      background-color: #0b1120 !important;
+      color: #e6faff !important;
+      border: 2px solid #00e5ff !important;
+      border-radius: 14px !important;
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.3) !important;
+    }
+    
+    /* Blogger içi uyarı pencerelerinin içindeki metinler ve butonlar */
+    .swal2-popup, div[class*="popup"], div[class*="modal"] {
       background: #0b1120 !important;
       color: #e6faff !important;
       border: 2px solid #00e5ff !important;
-      border-radius: 16px !important;
-    }
-
-    /* ANKA ÖZEL E-SPOR HAVALI MODAL (ALERT / CONFIRM) TASARIMI */
-    #anka-modal-overlay {
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(5, 8, 17, 0.9);
-      backdrop-filter: blur(8px);
-      z-index: 999999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      animation: ankaFadeIn 0.2s ease-out;
-    }
-    #anka-modal-box {
-      width: 85%;
-      max-width: 340px;
-      background: linear-gradient(135deg, #0b1120 0%, #111a2e 100%);
-      border: 2px solid #00e5ff;
-      border-radius: 16px;
-      box-shadow: 0 0 35px rgba(0, 229, 255, 0.4), inset 0 0 15px rgba(0, 229, 255, 0.1);
-      padding: 24px 20px;
-      text-align: center;
-      font-family: sans-serif;
-      color: #e6faff;
-      animation: ankaScaleUp 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    #anka-modal-title {
-      font-size: 15px;
-      font-weight: 800;
-      color: #00e5ff;
-      letter-spacing: 2px;
-      margin-bottom: 12px;
-      text-transform: uppercase;
-      text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
-    }
-    #anka-modal-msg {
-      font-size: 14px;
-      line-height: 1.5;
-      color: #cce9ff;
-      margin-bottom: 24px;
-      opacity: 0.95;
-    }
-    #anka-modal-buttons {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-    }
-    .anka-modal-btn {
-      flex: 1;
-      padding: 12px 16px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      text-transform: uppercase;
-    }
-    #anka-modal-ok {
-      background: linear-gradient(135deg, #00e5ff 0%, #0088cc 100%);
-      color: #0b1120;
-      border: none;
-      box-shadow: 0 4px 15px rgba(0, 229, 255, 0.4);
-    }
-    #anka-modal-ok:active {
-      transform: scale(0.95);
-    }
-    #anka-modal-cancel {
-      background: transparent;
-      color: #ff4d4d;
-      border: 2px solid #ff4d4d;
-    }
-    #anka-modal-cancel:active {
-      transform: scale(0.95);
-    }
-
-    @keyframes ankaFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes ankaScaleUp {
-      from { transform: scale(0.8); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
     }
   `;
   document.head.appendChild(style);
-  // ---------------------------------------------------------
+
+  // Loader elementini sayfaya ekle
+  var loader = document.createElement('div');
+  loader.id = 'anka-loader-overlay';
+  loader.innerHTML = `
+    <div class="anka-spinner"></div>
+    <div class="anka-loader-text">ANKA SİSTEMİ YÜKLENİYOR...</div>
+  `;
+  document.body.appendChild(loader);
+
+  // Sayfa tamamen yüklendiğinde loader'ı yok et
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      loader.style.opacity = '0';
+      loader.style.visibility = 'hidden';
+      setTimeout(function() {
+        if (loader.parentNode) loader.parentNode.removeChild(loader);
+      }, 400);
+    }, 500);
+  });
+  // ----------------------------------------------------------------STOPS
 
   var RULES = [
     [/(.+) kullanıcısına arkadaşlık isteği gönderildi!/, '📡 Sinyal gönderildi! $1 kabul edince bağlantı kurulacak.'],
@@ -138,66 +125,6 @@
     }
     return s;
   }
-
-  function showAnkaModal(title, message, isConfirm, callback) {
-    if (document.getElementById('anka-modal-overlay')) return;
-
-    var overlay = document.createElement('div');
-    overlay.id = 'anka-modal-overlay';
-
-    var box = document.createElement('div');
-    box.id = 'anka-modal-box';
-
-    var tEl = document.createElement('div');
-    tEl.id = 'anka-modal-title';
-    tEl.innerText = title;
-
-    var mEl = document.createElement('div');
-    mEl.id = 'anka-modal-msg';
-    mEl.innerText = message;
-
-    var bEl = document.createElement('div');
-    bEl.id = 'anka-modal-buttons';
-
-    var okBtn = document.createElement('button');
-    okBtn.id = 'anka-modal-ok';
-    okBtn.className = 'anka-modal-btn';
-    okBtn.innerText = 'TAMAM';
-    okBtn.onclick = function () {
-      document.body.removeChild(overlay);
-      if (callback) callback(true);
-    };
-    bEl.appendChild(okBtn);
-
-    if (isConfirm) {
-      var cancelBtn = document.createElement('button');
-      cancelBtn.id = 'anka-modal-cancel';
-      cancelBtn.className = 'anka-modal-btn';
-      cancelBtn.innerText = 'İPTAL';
-      cancelBtn.onclick = function () {
-        document.body.removeChild(overlay);
-        if (callback) callback(false);
-      };
-      bEl.appendChild(cancelBtn);
-    }
-
-    box.appendChild(tEl);
-    box.appendChild(mEl);
-    box.appendChild(bEl);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-  }
-
-  window.alert = function (m) {
-    showAnkaModal('ANKA BİLDİRİMİ', tr(String(m)), false);
-  };
-
-  window.confirm = function (m) {
-    showAnkaModal('ANKA ONAY', tr(String(m)), true, function(res) {
-      if (window.lastConfirmResolver) window.lastConfirmResolver(res);
-    });
-    return false;
-  };
 
   var _toast = window.showToast;
   if (typeof _toast === 'function') {
