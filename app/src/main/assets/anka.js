@@ -83,17 +83,14 @@
       transition: all 0.2s ease;
       text-transform: uppercase;
     }
-    #anka-modal-ok-red {
+    #anka-modal-ok {
       background: linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%);
       color: #ffffff;
       border: none;
       box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4);
     }
-    #anka-modal-ok-cyan {
-      background: linear-gradient(135deg, #00e5ff 0%, #0088cc 100%);
-      color: #0b1120;
-      border: none;
-      box-shadow: 0 4px 15px rgba(0, 229, 255, 0.4);
+    #anka-modal-ok:active {
+      transform: scale(0.95);
     }
     #anka-modal-cancel {
       background: transparent;
@@ -146,8 +143,8 @@
     return s;
   }
 
-  // --- HTML TABANLI ANKA MODAL YÖNETİCİSİ (PROMPT & CONFIRM & ALERT) ---
-  function showAnkaModal(title, message, isPrompt, defaultValue, okText, isRedBtn, callback) {
+  // --- DÜZENLE (PROMPT) VE SİL (CONFIRM) İÇİN GELİŞMİŞ ÖZEL MODAL ---
+  function showAnkaCustomModal(title, message, isPrompt, defaultValue, okText, cancelText, callback) {
     if (document.getElementById('anka-modal-overlay')) return;
 
     var overlay = document.createElement('div');
@@ -163,7 +160,6 @@
     var mEl = document.createElement('div');
     mEl.id = 'anka-modal-msg';
     mEl.innerText = message;
-    
     box.appendChild(tEl);
     box.appendChild(mEl);
 
@@ -180,7 +176,7 @@
     bEl.id = 'anka-modal-buttons';
 
     var okBtn = document.createElement('button');
-    okBtn.id = isRedBtn ? 'anka-modal-ok-red' : 'anka-modal-ok-cyan';
+    okBtn.id = 'anka-modal-ok';
     okBtn.className = 'anka-modal-btn';
     okBtn.innerText = okText || 'TAMAM';
     okBtn.onclick = function () {
@@ -190,17 +186,15 @@
     };
     bEl.appendChild(okBtn);
 
-    if (okText !== 'TAMAM') {
-      var cancelBtn = document.createElement('button');
-      cancelBtn.id = 'anka-modal-cancel';
-      cancelBtn.className = 'anka-modal-btn';
-      cancelBtn.innerText = 'KAPAT';
-      cancelBtn.onclick = function () {
-        document.body.removeChild(overlay);
-        if (callback) callback(isPrompt ? null : false);
-      };
-      bEl.appendChild(cancelBtn);
-    }
+    var cancelBtn = document.createElement('button');
+    cancelBtn.id = 'anka-modal-cancel';
+    cancelBtn.className = 'anka-modal-btn';
+    cancelBtn.innerText = cancelText || 'İPTAL';
+    cancelBtn.onclick = function () {
+      document.body.removeChild(overlay);
+      if (callback) callback(isPrompt ? null : false);
+    };
+    bEl.appendChild(cancelBtn);
 
     box.appendChild(bEl);
     overlay.appendChild(box);
@@ -211,68 +205,52 @@
     }
   }
 
-  // Tarayıcının standart pencerelerini tamamen güvenli modalımıza bağlıyoruz
-  window.alert = function(m) {
-    showAnkaModal('ANKA BİLDİRİMİ', tr(String(m)), false, '', 'TAMAM', false, null);
+  window.alert = function (m) {
+    showAnkaCustomModal('ANKA BİLDİRİMİ', tr(String(m)), false, '', 'TAMAM', 'KAPAT', null);
   };
 
-  window.confirm = function(m) {
-    // JavaScript senkron çalıştığı için confirm doğrudan true/false bekler.
-    // Blogger silme onayını HTML tabanlı yakaladığımız için bu fonksiyonu asenkron yönetiyoruz:
-    if (window._ankaCustomConfirmVal === true) {
-      window._ankaCustomConfirmVal = false;
+  window.confirm = function (m) {
+    var msg = tr(String(m));
+    // Asenkron yapıyı senkron confirm fonksiyonuna güvenli bağlama
+    if (window._ankaConfirmed === true) {
+      window._ankaConfirmed = false;
       return true;
     }
-    return false;
+    
+    // Modal açıldığında kullanıcının kararına göre bayrak set ediyoruz
+    showAnkaCustomModal('ANKA ONAY', msg, false, '', 'SİL', 'KAPAT', function(res) {
+      if (res) {
+        window._ankaConfirmed = true;
+        // Kullanıcı SİL'e bastığında tetikleyiciyi tekrar tetikle
+        if (window._ankaLastDeleteBtn) {
+          window._ankaLastDeleteBtn.click();
+        }
+      }
+    });
+    return false; 
   };
 
-  window.prompt = function(m, d) {
-    if (window._ankaCustomPromptVal !== undefined) {
-      var val = window._ankaCustomPromptVal;
-      window._ankaCustomPromptVal = undefined;
+  window.prompt = function (m, d) {
+    var msg = tr(String(m));
+    if (window._ankaPromptVal !== undefined) {
+      var val = window._ankaPromptVal;
+      window._ankaPromptVal = undefined;
       return val;
     }
+    
+    showAnkaCustomModal('ANKA DÜZENLE', msg, true, d, 'KAYDET', 'İPTAL', function(res) {
+      if (res !== null) {
+        window._ankaPromptVal = res;
+      }
+    });
     return d || "";
   };
 
-  // DÜZENLE ve SİL butonlarına tıklandığında tarayıcının çirkin pencerelerini bloklayıp bizim modalı açıyoruz
+  // Silme tuşunu hafızaya al
   document.addEventListener('click', function(e) {
-    var t = e.target;
-    if (!t) return;
-
-    var txt = t.innerText ? t.innerText.trim().toUpperCase() : '';
-    
-    // SİL Butonu Yakalama
-    if (txt === 'SİL' || t.className.indexOf('delete') !== -1 || t.getAttribute('title') === 'Sil') {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      showAnkaModal('ANKA ONAY', 'Bu yorumu silmek istediğine emin misin?', false, '', 'SİL', true, function(res) {
-        if (res) {
-          window._ankaCustomConfirmVal = true;
-          t.click(); // Orijinal silme tetikleyicisini güvenle çalıştır
-        }
-      });
-    }
-
-    // DÜZENLE Butonu Yakalama
-    if (txt === 'DÜZENLE' || t.className.indexOf('edit') !== -1 || t.getAttribute('title') === 'Düzenle') {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      // Mevcut yorum metnini bulmaya çalışıyoruz
-      var parentBox = t.closest('.comment, .comment-block, article, li');
-      var contentEl = parentBox ? parentBox.querySelector('.comment-content, p, .text') : null;
-      var currentText = contentEl ? contentEl.innerText : '';
-
-      showAnkaModal('ANKA DÜZENLE', 'Yorumunu düzenle:', true, currentText, 'KAYDET', false, function(res) {
-        if (res !== null) {
-          window._ankaCustomPromptVal = res;
-          t.click(); // Orijinal düzenleme tetikleyicisini çalıştır
-        }
-      });
+    var target = e.target;
+    if (target && (target.innerText === 'SİL' || target.className.indexOf('delete') !== -1 || target.getAttribute('title') === 'Sil')) {
+      window._ankaLastDeleteBtn = target;
     }
   }, true);
 
