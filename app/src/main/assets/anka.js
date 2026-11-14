@@ -10,10 +10,6 @@
       overflow-x: hidden !important;
       box-sizing: border-box !important;
     }
-    div, table, img, iframe, .popup, .comment-box, input, button {
-      max-width: 100% !important;
-      box-sizing: border-box !important;
-    }
 
     /* ORTADAKİ NEON YÜKLENME (LOADER) EKRANI */
     #anka-loader-overlay {
@@ -29,22 +25,22 @@
       transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
     }
     .anka-spinner {
-      width: 60px;
-      height: 60px;
-      border: 4px solid rgba(0, 229, 255, 0.1);
-      border-top: 4px solid #00e5ff;
+      width: 70px;
+      height: 70px;
+      border: 5px solid rgba(0, 229, 255, 0.1);
+      border-top: 5px solid #00e5ff;
       border-radius: 50%;
       animation: ankaSpin 0.8s linear infinite;
-      box-shadow: 0 0 20px rgba(0, 229, 255, 0.5);
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
       margin-bottom: 20px;
     }
     .anka-loader-text {
       color: #00e5ff;
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 800;
-      letter-spacing: 3px;
+      letter-spacing: 4px;
       text-transform: uppercase;
-      text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
+      text-shadow: 0 0 12px rgba(0, 229, 255, 0.7);
       animation: ankaPulse 1.2s ease-in-out infinite alternate;
     }
 
@@ -57,32 +53,38 @@
       100% { opacity: 1; }
     }
 
-    /* SİTEDEKİ TÜM GRİ DİYALOG, POPUP VE DÜZENLEME PENCERELERİNİ TAMAMEN BOYAMA (SİL / DÜZENLE BOZULMAZ) */
-    dialog, .modal, .popup, .popup-container, div[role="dialog"], .comment-form-reply, iframe.cke_wysiwyg_frame {
+    /* SİTEDEKİ TÜM GRİ DİYALOG, POPUP, DÜZENLEME VE SİLME PENCERELERİNİ TAMAMEN BOYAMA (BUTONLAR BOZULMADAN) */
+    dialog, .modal, .popup, .popup-container, div[role="dialog"], .comment-form-reply, iframe.cke_wysiwyg_frame, .swal2-popup, div[class*="popup"], div[class*="modal"] {
       background-color: #0b1120 !important;
       color: #e6faff !important;
       border: 2px solid #00e5ff !important;
       border-radius: 14px !important;
       box-shadow: 0 0 25px rgba(0, 229, 255, 0.3) !important;
     }
-    
-    /* Blogger içi uyarı pencerelerinin içindeki metinler ve butonlar */
-    .swal2-popup, div[class*="popup"], div[class*="modal"] {
-      background: #0b1120 !important;
+
+    /* Düzenleme veya silme pencerelerindeki metin alanları ve etiketler */
+    .swal2-title, .swal2-content, .swal2-html-container {
       color: #e6faff !important;
-      border: 2px solid #00e5ff !important;
     }
   `;
   document.head.appendChild(style);
 
-  // Loader elementini sayfaya ekle
+  // Loader elementini hemen sayfaya ekle
   var loader = document.createElement('div');
   loader.id = 'anka-loader-overlay';
   loader.innerHTML = `
     <div class="anka-spinner"></div>
     <div class="anka-loader-text">ANKA SİSTEMİ YÜKLENİYOR...</div>
   `;
-  document.body.appendChild(loader);
+  
+  // DOM yüklenir yüklenmez en üste iliştir
+  if (document.body) {
+    document.body.appendChild(loader);
+  } else {
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.appendChild(loader);
+    });
+  }
 
   // Sayfa tamamen yüklendiğinde loader'ı yok et
   window.addEventListener('load', function() {
@@ -92,7 +94,7 @@
       setTimeout(function() {
         if (loader.parentNode) loader.parentNode.removeChild(loader);
       }, 400);
-    }, 500);
+    }, 400);
   });
   // ----------------------------------------------------------------STOPS
 
@@ -143,10 +145,12 @@
     }
   }
 
-  fixNode(document.body);
-  new MutationObserver(function (list) {
-    list.forEach(function (m) {
-      Array.prototype.forEach.call(m.addedNodes, fixNode);
-    });
-  }).observe(document.body, { childList: true, subtree: true });
+  if (document.body) {
+    fixNode(document.body);
+    new MutationObserver(function (list) {
+      list.forEach(function (m) {
+        Array.prototype.forEach.call(m.addedNodes, fixNode);
+      });
+    }).observe(document.body, { childList: true, subtree: true });
+  }
 })();
