@@ -115,8 +115,16 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
-        web.setDownloadListener((url, ua, cd, mime, len) ->
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))));
+        // GÜNCELLENEN GÜVENLİ DOSYA İNDİRME YÖNETİCİSİ (Çökme sorununu çözer)
+        web.setDownloadListener((url, ua, cd, mime, len) -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception e) {
+                Toast.makeText(MainActivity.this, "Dosya indirilemedi!", Toast.LENGTH_SHORT).show();
+            }
+        });
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -127,7 +135,9 @@ public class MainActivity extends Activity {
                 boolean isWeb = "http".equals(scheme) || "https".equals(scheme);
                 if (isWeb && host != null && host.endsWith("blogspot.com")) return false;
                 try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, u));
+                    Intent intent = new Intent(Intent.ACTION_VIEW, u);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
                 } catch (Exception e) {
                     Toast.makeText(MainActivity.this, "Bu bağlantıyı açacak uygulama bulunamadı", Toast.LENGTH_SHORT).show();
                 }
@@ -185,7 +195,7 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onShowCustomView(View view, CustomViewCallback cb) {
+            public boolean onShowCustomView(View view, CustomViewCallback cb) {
                 if (customView != null) {
                     cb.onCustomViewHidden();
                     return;
