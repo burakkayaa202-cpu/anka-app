@@ -53,20 +53,8 @@
       font-size: 14px;
       line-height: 1.5;
       color: #cce9ff;
-      margin-bottom: 16px;
-      opacity: 0.95;
-    }
-    #anka-modal-input {
-      width: 100%;
-      background: #050811;
-      border: 2px solid #00e5ff;
-      border-radius: 8px;
-      color: #e6faff;
-      padding: 10px;
-      font-size: 14px;
       margin-bottom: 20px;
-      box-sizing: border-box;
-      outline: none;
+      opacity: 0.95;
     }
     #anka-modal-buttons {
       display: flex;
@@ -143,144 +131,22 @@
     return s;
   }
 
-  // --- ÖZEL MODAL YÖNETİCİSİ (SİL / KAPAT) ---
-  function showAnkaConfirmModal(title, message, callback) {
-    if (document.getElementById('anka-modal-overlay')) return;
-
-    var overlay = document.createElement('div');
-    overlay.id = 'anka-modal-overlay';
-
-    var box = document.createElement('div');
-    box.id = 'anka-modal-box';
-
-    var tEl = document.createElement('div');
-    tEl.id = 'anka-modal-title';
-    tEl.innerText = title;
-
-    var mEl = document.createElement('div');
-    mEl.id = 'anka-modal-msg';
-    mEl.innerText = message;
-    box.appendChild(tEl);
-    box.appendChild(mEl);
-
-    var bEl = document.createElement('div');
-    bEl.id = 'anka-modal-buttons';
-
-    // SİL Butonu (Onaylar -> true döner)
-    var okBtn = document.createElement('button');
-    okBtn.id = 'anka-modal-ok';
-    okBtn.className = 'anka-modal-btn';
-    okBtn.innerText = 'SİL';
-    okBtn.onclick = function () {
-      document.body.removeChild(overlay);
-      callback(true);
-    };
-    bEl.appendChild(okBtn);
-
-    // KAPAT Butonu (İptal eder -> false döner)
-    var cancelBtn = document.createElement('button');
-    cancelBtn.id = 'anka-modal-cancel';
-    cancelBtn.className = 'anka-modal-btn';
-    cancelBtn.innerText = 'KAPAT';
-    cancelBtn.onclick = function () {
-      document.body.removeChild(overlay);
-      callback(false);
-    };
-    bEl.appendChild(cancelBtn);
-
-    box.appendChild(bEl);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-  }
-
-  function showAnkaAlertModal(title, message) {
-    if (document.getElementById('anka-modal-overlay')) return;
-
-    var overlay = document.createElement('div');
-    overlay.id = 'anka-modal-overlay';
-
-    var box = document.createElement('div');
-    box.id = 'anka-modal-box';
-
-    var tEl = document.createElement('div');
-    tEl.id = 'anka-modal-title';
-    tEl.innerText = title;
-
-    var mEl = document.createElement('div');
-    mEl.id = 'anka-modal-msg';
-    mEl.innerText = message;
-    box.appendChild(tEl);
-    box.appendChild(mEl);
-
-    var bEl = document.createElement('div');
-    bEl.id = 'anka-modal-buttons';
-
-    var okBtn = document.createElement('button');
-    okBtn.id = 'anka-modal-ok';
-    okBtn.className = 'anka-modal-btn';
-    okBtn.style.background = 'linear-gradient(135deg, #00e5ff 0%, #0088cc 100%)';
-    okBtn.style.color = '#0b1120';
-    okBtn.innerText = 'TAMAM';
-    okBtn.onclick = function () {
-      document.body.removeChild(overlay);
-    };
-    bEl.appendChild(okBtn);
-
-    box.appendChild(bEl);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-  }
-
-  var nativeConfirm = window.confirm;
-
+  // Güvenli Alert (Bildirim)
   window.alert = function (m) {
-    showAnkaAlertModal('ANKA BİLDİRİMİ', tr(String(m)));
+    if (document.getElementById('anka-modal-overlay')) return;
+    var overlay = document.createElement('div');
+    overlay.id = 'anka-modal-overlay';
+    overlay.innerHTML = `
+      <div id="anka-modal-box">
+        <div id="anka-modal-title">ANKA BİLDİRİMİ</div>
+        <div id="anka-modal-msg">${tr(String(m))}</div>
+        <div id="anka-modal-buttons">
+          <button id="anka-modal-ok" class="anka-modal-btn" style="background:linear-gradient(135deg, #00e5ff 0%, #0088cc 100%); color:#0b1120;">TAMAM</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('anka-modal-ok').onclick = function() { document.body.removeChild(overlay); };
   };
-
-  // Blogger onay mekanizmasını tamamen yakalayan override
-  window.confirm = function (m) {
-    // Burada orijinal confirm fonksiyonunu sarmalıyoruz
-    // Ancak JavaScript senkron çalıştığı için confirm doğrudan true/false bekler.
-    // Çözüm olarak kullanıcıya özel modal gösterip kararına göre orijinal confirm tetikleyicisini simüle ediyoruz:
-    var msg = tr(String(m));
-    
-    // Eğer confirm daha önce tetiklenmediyse özel modal aç
-    if (!window._ankaInConfirm) {
-      window._ankaInConfirm = true;
-      showAnkaConfirmModal('ANKA ONAY', msg, function(result) {
-        window._ankaInConfirm = false;
-        if (result) {
-          // Kullanıcı SİL tuşuna bastı, sayfadaki silme fonksiyonunu tetiklemek için onay veriyoruz
-          // Onay onaylandı bayrağı ile orijinal akışı tetikle
-          window._ankaForceTrue = true;
-          // Silme işlemini yapan DOM elementini veya tetikleyiciyi tekrar tetikle
-          if (window._ankaTargetDeleteBtn) {
-            var btn = window._ankaTargetDeleteBtn;
-            window._ankaTargetDeleteBtn = null;
-            // Orijinal click olayını tekrar güvenle tetikle
-            var ev = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-            btn.dispatchEvent(ev);
-          }
-        }
-      });
-      return false; // İlk etapta engelle ki hemen silmesin
-    }
-
-    if (window._ankaForceTrue) {
-      window._ankaForceTrue = false;
-      return true; // SİL tuşuna basıldıysa silmeye izin ver
-    }
-
-    return false; // KAPAT tuşuna basıldıysa kesinlikle silme!
-  };
-
-  // Silme butonuna tıklandığında hedefi hafızaya alıyoruz
-  document.addEventListener('click', function(e) {
-    var t = e.target;
-    if (t && (t.innerText === 'SİL' || t.className.indexOf('delete') !== -1 || t.getAttribute('title') === 'Sil')) {
-      window._ankaTargetDeleteBtn = t;
-    }
-  }, true);
 
   var _toast = window.showToast;
   if (typeof _toast === 'function') {
