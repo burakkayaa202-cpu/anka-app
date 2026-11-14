@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private WebView web;
     private FrameLayout splash;
-    private ProgressBar progressBar; // Havalı yükleme çubuğu
+    private ProgressBar progressBar;
     private ValueCallback<Uri[]> filePathCallback;
     private View customView;
     private WebChromeClient.CustomViewCallback customCallback;
@@ -101,7 +101,6 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(dark);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
 
-        // Şık, neon uyumlu ortadaki yükleme çubuğu (ProgressBar)
         progressBar = new ProgressBar(this);
         progressBar.setIndeterminate(true);
         root.addView(progressBar, new FrameLayout.LayoutParams(dp(60), dp(60), Gravity.CENTER));
@@ -149,12 +148,12 @@ public class MainActivity extends Activity {
             @Override
             public void onPageStarted(WebView v, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(v, url, favicon);
-                progressBar.setVisibility(View.VISIBLE); // Sayfa yüklenmeye başladığında çubuğu göster
+                if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
             }
 
             @Override
             public void onPageFinished(WebView v, String url) {
-                progressBar.setVisibility(View.GONE); // Sayfa yüklenince çubuğu gizle
+                if (progressBar != null) progressBar.setVisibility(View.GONE);
                 String js = loadFx();
                 if (!js.isEmpty()) v.evaluateJavascript(js, null);
                 hideSplash();
@@ -162,7 +161,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
-                progressBar.setVisibility(View.GONE);
+                if (progressBar != null) progressBar.setVisibility(View.GONE);
                 if (r.isForMainFrame()) showOffline();
             }
         });
