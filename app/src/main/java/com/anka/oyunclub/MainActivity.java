@@ -115,9 +115,13 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         
-        // Tasarım bozukluklarını ve taşmaları önleyen ölçekleme ayarları
+        // Ölçekleme ayarları
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
+
+        // Önbellek ve Performans Optimizasyonları Eklendi
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        s.setDatabaseEnabled(true);
 
         web.setDownloadListener((url, ua, cd, mime, len) ->
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))));
@@ -152,7 +156,6 @@ public class MainActivity extends Activity {
         });
 
         web.setWebChromeClient(new WebChromeClient() {
-            // Çirkin site adresli tarayıcı alert kutusunu engeller ve temiz kutu açar
             @Override
             public boolean onJsAlert(WebView view, String url, String message, android.webkit.JsResult result) {
                 new AlertDialog.Builder(MainActivity.this)
@@ -164,7 +167,6 @@ public class MainActivity extends Activity {
                 return true;
             }
 
-            // Çirkin site adresli tarayıcı confirm (silme/onay) kutusunu engeller ve temiz kutu açar
             @Override
             public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
                 new AlertDialog.Builder(MainActivity.this)
@@ -191,7 +193,7 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onShowCustomView(View view, CustomViewCallback cb) {
+            public boolean onShowCustomView(View view, CustomViewCallback cb) {
                 if (customView != null) {
                     cb.onCustomViewHidden();
                     return;
