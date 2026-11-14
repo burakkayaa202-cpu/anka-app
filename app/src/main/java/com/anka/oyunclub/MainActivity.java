@@ -115,10 +115,11 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
-        // GÜNCELLENEN GÜVENLİ DOSYA İNDİRME YÖNETİCİSİ (Çökme sorununu çözer)
-        web.setDownloadListener((url, ua, cd, mime, len) -> {
+        // Doğru ve hatasız DownloadListener (Topluluktan dosya indirme çökmesini engeller)
+        web.setDownloadListener(function(url, userAgent, contentDisposition, mimetype, contentLength) {
             try {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setData(Uri.parse(url));
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
             } catch (Exception e) {
