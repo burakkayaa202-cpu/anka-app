@@ -30,8 +30,6 @@ public class MainActivity extends Activity {
     private WebView web;
     private FrameLayout splash;
     private ValueCallback<Uri[]> filePathCallback;
-    private View customView;
-    private WebChromeClient.CustomViewCallback customCallback;
     private long lastBack = 0;
     private String fxJs = null;
 
@@ -71,16 +69,6 @@ public class MainActivity extends Activity {
         web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
     }
 
-    private void leaveFullscreen() {
-        if (customView == null) return;
-        root.removeView(customView);
-        customView = null;
-        web.setVisibility(View.VISIBLE);
-        getWindow().getDecorView().setSystemUiVisibility(0);
-        if (customCallback != null) customCallback.onCustomViewHidden();
-        customCallback = null;
-    }
-
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -115,7 +103,7 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
-        // Güvenli İndirme Yöneticisi
+        // Güvenli İndirme Yöneticisi (Topluluktan dosya indirme çökmesini engeller)
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -193,28 +181,6 @@ public class MainActivity extends Activity {
                 }
                 return true;
             }
-
-            @Override
-            public boolean onShowCustomView(View view, CustomViewCallback cb) {
-                if (customView != null) {
-                    cb.onCustomViewHidden();
-                    return true;
-                }
-                customView = view;
-                customCallback = cb;
-                root.addView(view, new FrameLayout.LayoutParams(-1, -1));
-                web.setVisibility(View.GONE);
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-                return true;
-            }
-
-            @Override
-            public void onHideCustomView() {
-                leaveFullscreen();
-            }
         });
 
         if (b == null) web.loadUrl(SITE); else web.restoreState(b);
@@ -255,9 +221,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (customView != null) {
-            leaveFullscreen();
-        } else if (web.canGoBack()) {
+        if (web.canGoBack()) {
             web.goBack();
         } else if (System.currentTimeMillis() - lastBack < 2000) {
             super.onBackPressed();
