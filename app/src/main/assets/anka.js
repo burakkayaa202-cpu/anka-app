@@ -2,6 +2,22 @@
   if (window.__ankaFx) return;
   window.__ankaFx = true;
 
+  // --- MOBİL UYUMLULUK VE TAŞMA ÖNLEYİCİ CSS ENJEKSİYONU ---
+  var style = document.createElement('style');
+  style.innerHTML = `
+    body {
+      max-width: 100vw !important;
+      overflow-x: hidden !important;
+      box-sizing: border-box !important;
+    }
+    div, table, img, iframe, .popup, .comment-box, input, button {
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+  `;
+  document.head.appendChild(style);
+  // ---------------------------------------------------------
+
   var RULES = [
     [/(.+) kullanıcısına arkadaşlık isteği gönderildi!/, '📡 Sinyal gönderildi! $1 kabul edince bağlantı kurulacak.'],
     [/Bu kullanıcı ile zaten arkadaşsınız!/, '🤝 Bu oyuncuyla bağlantın zaten aktif!'],
