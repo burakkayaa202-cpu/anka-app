@@ -115,7 +115,7 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
-        // DOĞRU VE HATASIZ JAVA LAMBDA DOWNLOAD LİSTENER
+        // Güvenli İndirme Yöneticisi
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -198,7 +198,7 @@ public class MainActivity extends Activity {
             public boolean onShowCustomView(View view, CustomViewCallback cb) {
                 if (customView != null) {
                     cb.onCustomViewHidden();
-                    return;
+                    return true;
                 }
                 customView = view;
                 customCallback = cb;
@@ -208,6 +208,7 @@ public class MainActivity extends Activity {
                     View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                return true;
             }
 
             @Override
