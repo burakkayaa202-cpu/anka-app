@@ -2,7 +2,7 @@
   if (window.__ankaFx) return;
   window.__ankaFx = true;
 
-  // --- MOBİL UYUMLULUK VE ÖZEL MODAL CSS ENJEKSİYONU ---
+  // --- MOBİL UYUMLULUK VE TÜM GRI KUTULARI YOK EDEN CSS ENJEKSİYONU ---
   var style = document.createElement('style');
   style.innerHTML = `
     body {
@@ -15,11 +15,19 @@
       box-sizing: border-box !important;
     }
 
+    /* TARAYICI VE SİSTEM GİRİ KUTULARI İÇİN TÜM DİYALOG STİLLERİNİ EZME */
+    dialog, .modal, .popup-container, div[role="dialog"] {
+      background: #0b1120 !important;
+      color: #e6faff !important;
+      border: 2px solid #00e5ff !important;
+      border-radius: 16px !important;
+    }
+
     /* ANKA ÖZEL E-SPOR HAVALI MODAL (ALERT / CONFIRM) TASARIMI */
     #anka-modal-overlay {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(5, 8, 17, 0.88);
+      background: rgba(5, 8, 17, 0.9);
       backdrop-filter: blur(8px);
       z-index: 999999;
       display: flex;
@@ -33,7 +41,7 @@
       background: linear-gradient(135deg, #0b1120 0%, #111a2e 100%);
       border: 2px solid #00e5ff;
       border-radius: 16px;
-      box-shadow: 0 0 30px rgba(0, 229, 255, 0.35), inset 0 0 15px rgba(0, 229, 255, 0.08);
+      box-shadow: 0 0 35px rgba(0, 229, 255, 0.4), inset 0 0 15px rgba(0, 229, 255, 0.1);
       padding: 24px 20px;
       text-align: center;
       font-family: sans-serif;
@@ -131,7 +139,6 @@
     return s;
   }
 
-  // --- ÖZEL WEB TABANLI MODAL TETİKLEYİCİLERİ ---
   function showAnkaModal(title, message, isConfirm, callback) {
     if (document.getElementById('anka-modal-overlay')) return;
 
@@ -181,26 +188,16 @@
     document.body.appendChild(overlay);
   }
 
-  // Tarayıcı alert ve confirm'lerini JavaScript içinde yakalayıp özel tasarıma yönlendiriyoruz
   window.alert = function (m) {
     showAnkaModal('ANKA BİLDİRİMİ', tr(String(m)), false);
   };
 
   window.confirm = function (m) {
-    // Silme ve düzenleme butonlarının düzgün çalışması için confirm fonksiyonunu özel pencere ile sarmalıyoruz
-    // Not: Blogger silme onayı true beklediği için burada özel confirm tetiklenir.
-    if (window.ankaConfirmCallback) {
-      window.ankaConfirmCallback(tr(String(m)));
-    } else {
-      // Eğer özel callback tanımlı değilse doğrudan özel modal açıyoruz
-      // (Blogger silme mekanizması asenkron çalışabildiği için burası butonların çalışmasını bozmaz)
-      showAnkaModal('ANKA ONAY', tr(String(m)), true, function(res) {
-        if (window.lastConfirmResolver) window.lastConfirmResolver(res);
-      });
-    }
-    return true; // Kod akışının kesilmemesi için
+    showAnkaModal('ANKA ONAY', tr(String(m)), true, function(res) {
+      if (window.lastConfirmResolver) window.lastConfirmResolver(res);
+    });
+    return false;
   };
-  // ---------------------------------------------------------
 
   var _toast = window.showToast;
   if (typeof _toast === 'function') {
@@ -214,7 +211,7 @@
         var r = tr(v);
         if (r !== v) n.nodeValue = r;
       }
-    } else if (n.nodeType::nodeType === 1 && n.tagName !== 'SCRIPT' && n.tagName !== 'STYLE') {
+    } else if (n.nodeType === 1 && n.tagName !== 'SCRIPT' && n.tagName !== 'STYLE') {
       for (var c = n.firstChild; c; c = c.nextSibling) fixNode(c);
     }
   }
