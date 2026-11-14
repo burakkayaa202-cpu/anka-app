@@ -248,7 +248,7 @@ public class MainActivity extends Activity {
             leaveFullscreen();
         } else if (web.canGoBack()) {
             web.goBack();
-        } else.if (System.currentTimeMillis() - lastBack < 2000) {
+        } else if (System.currentTimeMillis() - lastBack < 2000) {
             super.onBackPressed();
         } else {
             lastBack = System.currentTimeMillis();
