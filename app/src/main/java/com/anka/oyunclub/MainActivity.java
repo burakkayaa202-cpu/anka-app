@@ -1,6 +1,7 @@
 package com.anka.oyunclub;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -114,7 +115,7 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         
-        // Tasarım bozukluklarını ve taşmaları önleyen ölçekleme ayarları eklendi:
+        // Tasarım bozukluklarını ve taşmaları önleyen ölçekleme ayarları
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
 
@@ -151,6 +152,31 @@ public class MainActivity extends Activity {
         });
 
         web.setWebChromeClient(new WebChromeClient() {
+            // Çirkin site adresli tarayıcı alert kutusunu engeller ve temiz kutu açar
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, android.webkit.JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("ANKA BİLDİRİMİ")
+                    .setMessage(message)
+                    .setPositiveButton("TAMAM", (dialog, which) -> result.confirm())
+                    .setCancelable(false)
+                    .show();
+                return true;
+            }
+
+            // Çirkin site adresli tarayıcı confirm (silme/onay) kutusunu engeller ve temiz kutu açar
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("ANKA ONAY")
+                    .setMessage(message)
+                    .setPositiveButton("TAMAM", (dialog, which) -> result.confirm())
+                    .setNegativeButton("İPTAL", (dialog, which) -> result.cancel())
+                    .setCancelable(false)
+                    .show();
+                return true;
+            }
+
             @Override
             public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 if (filePathCallback != null) filePathCallback.onReceiveValue(null);
