@@ -115,11 +115,10 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
-        // Doğru ve hatasız DownloadListener (Topluluktan dosya indirme çökmesini engeller)
-        web.setDownloadListener(function(url, userAgent, contentDisposition, mimetype, contentLength) {
+        // DOĞRU VE HATASIZ JAVA LAMBDA DOWNLOAD LİSTENER
+        web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             try {
-                Intent intent = new Intent(Intent.ACTION_VIEW);
-                intent.setData(Uri.parse(url));
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
             } catch (Exception e) {
