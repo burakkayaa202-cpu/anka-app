@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -50,7 +51,7 @@ public class MainActivity extends Activity {
             in.close();
             fxJs = out.toString("UTF-8");
         } catch (Exception e) {
-            fxJs = ""; // anka.js bulunamazsa çökme önlenir
+            fxJs = "";
         }
         return fxJs;
     }
@@ -64,7 +65,7 @@ public class MainActivity extends Activity {
 
     private void showOffline() {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
-        html += "<h1 style='color:#00e5ff;letter-spacing:2px;text-shadow:0 0 10px rgba(0,229,255,0.4);'>ANKA APK</h1>";
+        html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
         html += "<p style='opacity:.8;'>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>";
         html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;cursor:pointer;'>Yeniden Bağlan</button>";
         html += "</body></html>";
@@ -115,6 +116,11 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
+        // Yorumların ve oturumların düzgün çalışabilmesi için çerez (cookie) yönetimi aktif edildi
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        cookieManager.setAcceptThirdPartyCookies(web, true);
+
         // Güvenli İndirme Yöneticisi
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             try {
@@ -146,7 +152,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String url) {
-                // anka.js içerisindeki neon stiller, yorum düzenleme ve silme fonksiyonları yüklenir
+                // Yorum düzenleme/silme ve neon elementleri tetikleyen anka.js güvenle enjekte edilir
                 String js = loadFx();
                 if (js != null && !js.isEmpty()) {
                     v.evaluateJavascript(js, null);
@@ -188,15 +194,12 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams params) {
-                if (filePathCallback != null) {
-                    filePathCallback.onReceiveValue(null);
-                }
+                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
                 filePathCallback = cb;
                 try {
                     startActivityForResult(params.createIntent(), PICK);
                 } catch (Exception e) {
                     filePathCallback = null;
-                    Toast.makeText(MainActivity.->this, "Dosya seçici açılamadı", Toast.LENGTH_SHORT).show(); // Düzeltildi
                     return false;
                 }
                 return true;
