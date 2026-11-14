@@ -18,7 +18,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
@@ -30,7 +29,6 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private WebView web;
     private FrameLayout splash;
-    private ProgressBar progressBar;
     private ValueCallback<Uri[]> filePathCallback;
     private View customView;
     private WebChromeClient.CustomViewCallback customCallback;
@@ -101,10 +99,6 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(dark);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
 
-        progressBar = new ProgressBar(this);
-        progressBar.setIndeterminate(true);
-        root.addView(progressBar, new FrameLayout.LayoutParams(dp(60), dp(60), Gravity.CENTER));
-
         splash = new FrameLayout(this);
         splash.setBackgroundColor(dark);
         ImageView logo = new ImageView(this);
@@ -121,6 +115,7 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         
+        // Tasarım bozulmalarını önleyen ölçekleme ayarları
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
@@ -146,14 +141,7 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onPageStarted(WebView v, String url) {
-                super.onPageStarted(v, url);
-                if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
-            }
-
-            @Override
             public void onPageFinished(WebView v, String url) {
-                if (progressBar != null) progressBar.setVisibility(View.GONE);
                 String js = loadFx();
                 if (!js.isEmpty()) v.evaluateJavascript(js, null);
                 hideSplash();
@@ -161,7 +149,6 @@ public class MainActivity extends Activity {
 
             @Override
             public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
-                if (progressBar != null) progressBar.setVisibility(View.GONE);
                 if (r.isForMainFrame()) showOffline();
             }
         });
