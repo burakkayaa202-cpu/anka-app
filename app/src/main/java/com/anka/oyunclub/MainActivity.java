@@ -1,14 +1,24 @@
 package com.anka.oyunclub;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Html;
+import android.text.InputType;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+import android.webkit.JsPromptResult;
+import android.webkit.JsResult;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -16,12 +26,16 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final String SITE = "https://ankaoyunclub.blogspot.com";
@@ -30,8 +44,12 @@ public class MainActivity extends Activity {
     private WebView web;
     private FrameLayout splash;
     private ValueCallback<Uri[]> filePathCallback;
+    private View customView;
+    private WebChromeClient.CustomViewCallback customCallback;
     private long lastBack = 0;
     private String fxJs = null;
+
+    private interface Done { void run(boolean ok, String text); }
 
     private int dp(int n) {
         return (int) (n * getResources().getDisplayMetrics().density);
@@ -60,6 +78,132 @@ public class MainActivity extends Activity {
         }
     }
 
+    // ---------- ANKA NEON DİYALOG YARDIMCILARI ----------
+
+    private GradientDrawable shape(int fill, int stroke, int radiusDp) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(dp(radiusDp));
+        if (stroke != 0) g.setStroke(dp(2), stroke);
+        return g;
+    }
+
+    private TextView ankaBtn(String text, boolean primary) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setGravity(Gravity.CENTER);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        t.setPadding(dp(8), dp(16), dp(8), dp(16));
+        if (primary) {
+            GradientDrawable g = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Color.parseColor("#FF4D4D"), Color.parseColor("#CC0000")});
+            g.setCornerRadius(dp(14));
+            t.setBackground(g);
+            t.setTextColor(Color.WHITE);
+        } else {
+            t.setBackground(shape(Color.parseColor("#0B1120"), Color.parseColor("#00E5FF"), 14));
+            t.setTextColor(Color.parseColor("#00E5FF"));
+        }
+        return t;
+    }
+
+    // Yorumun içindeki HTML kodlarını temizler, düz metin bırakır
+    private String cleanText(String s) {
+        if (s == null) return "";
+        if (s.contains("<") && s.contains(">")) {
+            s = Html.fromHtml(s, Html.FROM_HTML_MODE_LEGACY).toString();
+        }
+        return s.trim();
+    }
+
+    private void ankaDialog(String title, String msg, String input,
+                            String okText, String cancelText, Done done) {
+        final Dialog d = new Dialog(this);
+        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        d.setCancelable(false);
+        final boolean[] finished = {false};
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(24), dp(22), dp(24), dp(24));
+        box.setBackground(shape(Color.parseColor("#0B1120"), Color.parseColor("#00E5FF"), 24));
+
+        TextView tt = new TextView(this);
+        tt.setText(title);
+        tt.setGravity(Gravity.CENTER);
+        tt.setTextColor(Color.parseColor("#00E5FF"));
+        tt.setTypeface(Typeface.DEFAULT_BOLD);
+        tt.setLetterSpacing(0.12f);
+        tt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+        box.addView(tt);
+
+        TextView mm = new TextView(this);
+        mm.setText(msg == null ? "" : msg);
+        mm.setGravity(Gravity.CENTER);
+        mm.setTextColor(Color.parseColor("#E6FAFF"));
+        mm.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        mm.setPadding(0, dp(12), 0, dp(16));
+        box.addView(mm);
+
+        final EditText et;
+        if (input != null) {
+            et = new EditText(this);
+            et.setText(input);
+            et.setTextColor(Color.WHITE);
+            et.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            et.setMaxLines(4);
+            et.setPadding(dp(14), dp(12), dp(14), dp(12));
+            et.setBackground(shape(Color.parseColor("#050810"), Color.parseColor("#00E5FF"), 14));
+            et.setSelection(et.getText().length());
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.bottomMargin = dp(16);
+            box.addView(et, lp);
+        } else {
+            et = null;
+        }
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        TextView ok = ankaBtn(okText, true);
+        row.addView(ok, new LinearLayout.LayoutParams(0, -2, 1f));
+        if (cancelText != null) {
+            TextView no = ankaBtn(cancelText, false);
+            LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(0, -2, 1f);
+            p2.leftMargin = dp(12);
+            row.addView(no, p2);
+            no.setOnClickListener(v -> {
+                if (finished[0]) return;
+                finished[0] = true;
+                d.dismiss();
+                done.run(false, null);
+            });
+        }
+        box.addView(row);
+
+        ok.setOnClickListener(v -> {
+            if (finished[0]) return;
+            finished[0] = true;
+            d.dismiss();
+            done.run(true, et != null ? et.getText().toString() : null);
+        });
+
+        d.setContentView(box);
+        d.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        d.getWindow().setDimAmount(0.75f);
+        d.getWindow().setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            | WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        d.show();
+        int w = Math.min((int) (getResources().getDisplayMetrics().widthPixels * 0.9f), dp(560));
+        d.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
+    // ----------------------------------------------------
+
     private void showOffline() {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
         html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
@@ -67,6 +211,16 @@ public class MainActivity extends Activity {
         html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;'>Yeniden Bağlan</button>";
         html += "</body></html>";
         web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
+    }
+
+    private void leaveFullscreen() {
+        if (customView == null) return;
+        root.removeView(customView);
+        customView = null;
+        web.setVisibility(View.VISIBLE);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        if (customCallback != null) customCallback.onCustomViewHidden();
+        customCallback = null;
     }
 
     @Override
@@ -97,13 +251,19 @@ public class MainActivity extends Activity {
         s.setLoadsImagesAutomatically(true);
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        
+
+        // Chrome'daki gibi görünmesi için
         s.setUseWideViewPort(true);
-        s.setLoadWithOverviewMode(true);
+        s.setLoadWithOverviewMode(false);
+        s.setTextZoom(100);
+        s.setSupportZoom(false);
+        s.setBuiltInZoomControls(false);
+        s.setUserAgentString(s.getUserAgentString().replace("; wv", ""));
+
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
-        // Güvenli İndirme Yöneticisi (Topluluktan dosya indirme çökmesini engeller)
+        // Güvenli İndirme Yöneticisi
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -147,39 +307,78 @@ public class MainActivity extends Activity {
 
         web.setWebChromeClient(new WebChromeClient() {
             @Override
-            public boolean onJsAlert(WebView view, String url, String message, android.webkit.JsResult result) {
-                new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("ANKA BİLDİRİMİ")
-                    .setMessage(message)
-                    .setPositiveButton("TAMAM", (dialog, which) -> result.confirm())
-                    .setCancelable(false)
-                    .show();
+            public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                ankaDialog("ANKA BİLDİRİMİ", message, null, "TAMAM", null,
+                    (ok, t) -> result.confirm());
                 return true;
             }
 
             @Override
-            public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
-                new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("ANKA ONAY")
-                    .setMessage(message)
-                    .setPositiveButton("TAMAM", (dialog, which) -> result.confirm())
-                    .setNegativeButton("İPTAL", (dialog, which) -> result.cancel())
-                    .setCancelable(false)
-                    .show();
+            public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                boolean del = message != null
+                    && message.toLowerCase(new Locale("tr")).contains("sil");
+                ankaDialog("ANKA ONAY", message, null,
+                    del ? "SİL" : "TAMAM", del ? "KAPAT" : "İPTAL",
+                    (ok, t) -> { if (ok) result.confirm(); else result.cancel(); });
+                return true;
+            }
+
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message,
+                                      String defaultValue, JsPromptResult result) {
+                boolean edit = message != null
+                    && message.toLowerCase(new Locale("tr")).contains("düzenle");
+                ankaDialog(edit ? "ANKA DÜZENLE" : "ANKA GİRİŞ", message,
+                    cleanText(defaultValue),
+                    edit ? "KAYDET" : "TAMAM", "İPTAL",
+                    (ok, t) -> { if (ok) result.confirm(t); else result.cancel(); });
                 return true;
             }
 
             @Override
             public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams params) {
-                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                if (filePathCallback != null) {
+                    filePathCallback.onReceiveValue(null);
+                    filePathCallback = null;
+                }
                 filePathCallback = cb;
                 try {
-                    startActivityForResult(params.createIntent(), PICK);
+                    Intent intent = params.createIntent();
+                    startActivityForResult(intent, PICK);
                 } catch (Exception e) {
-                    filePathCallback = null;
-                    return false;
+                    try {
+                        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                        i.addCategory(Intent.CATEGORY_OPENABLE);
+                        i.setType("*/*");
+                        startActivityForResult(Intent.createChooser(i, "Dosya Seç"), PICK);
+                    } catch (Exception ex) {
+                        filePathCallback.onReceiveValue(null);
+                        filePathCallback = null;
+                        return false;
+                    }
                 }
                 return true;
+            }
+
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback cb) {
+                if (customView != null) {
+                    cb.onCustomViewHidden();
+                    return;
+                }
+                customView = view;
+                customCallback = cb;
+                root.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                web.setVisibility(View.GONE);
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            }
+
+            @Override
+            public void onHideCustomView() {
+                leaveFullscreen();
             }
         });
 
@@ -189,10 +388,22 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
-        if (req == PICK && filePathCallback != null) {
+        if (req == PICK) {
+            if (filePathCallback == null) return;
             Uri[] result = null;
-            if (res == RESULT_OK && data != null) {
-                result = WebChromeClient.FileChooserParams.parseResult(res, data);
+            if (res == RESULT_OK) {
+                if (data != null) {
+                    String dataString = data.getDataString();
+                    if (dataString != null) {
+                        result = new Uri[]{Uri.parse(dataString)};
+                    } else if (data.getClipData() != null) {
+                        int count = data.getClipData().getItemCount();
+                        result = new Uri[count];
+                        for (int i = 0; i < count; i++) {
+                            result[i] = data.getClipData().getItemAt(i).getUri();
+                        }
+                    }
+                }
             }
             filePathCallback.onReceiveValue(result);
             filePathCallback = null;
@@ -221,7 +432,9 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web.canGoBack()) {
+        if (customView != null) {
+            leaveFullscreen();
+        } else if (web.canGoBack()) {
             web.goBack();
         } else if (System.currentTimeMillis() - lastBack < 2000) {
             super.onBackPressed();
