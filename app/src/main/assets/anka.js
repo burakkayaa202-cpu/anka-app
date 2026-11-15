@@ -1,292 +1,109 @@
-package com.anka.oyunclub;
+(function () {
+  'use strict';
+  if (window.__ankaFx) return;
+  window.__ankaFx = true;
 
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.Intent;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
-import android.net.Uri;
-import android.os.Bundle;
-import android.view.Gravity;
-import android.view.View;
-import android.webkit.ValueCallback;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
-import android.widget.Toast;
+  // ---- AYARLAR (gerekirse burayı değiştir) ----
+  var GIFT_BOTTOM_PX = 96;      // hediye butonunu alttan ne kadar yukarı alsın
+  var MENU_WORDS = ['FOTO', 'VİDEO', 'VIDEO', 'DOSYA']; // + menüsündeki yazılar
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-
-public class MainActivity extends Activity {
-    private static final String SITE = "https://ankaoyunclub.blogspot.com";
-    private static final int PICK = 1;
-    private FrameLayout root;
-    private WebView web;
-    private FrameLayout splash;
-    private ValueCallback<Uri[]> filePathCallback;
-    private View customView;
-    private WebChromeClient.CustomViewCallback customCallback;
-    private long lastBack = 0;
-    private String fxJs = null;
-
-    private int dp(int n) {
-        return (int) (n * getResources().getDisplayMetrics().density);
+  // ---- 1) Yakınlaştırmayı kapat, ölçüyü sabitle ----
+  try {
+    var vp = document.querySelector('meta[name="viewport"]');
+    if (!vp) {
+      vp = document.createElement('meta');
+      vp.name = 'viewport';
+      document.head.appendChild(vp);
     }
+    vp.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+  } catch (e) {}
 
-    private String loadFx() {
-        if (fxJs != null) return fxJs;
-        try {
-            InputStream in = getAssets().open("anka.js");
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buf = new byte[4096];
-            int n;
-            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-            in.close();
-            fxJs = out.toString("UTF-8");
-        } catch (Exception e) {
-            fxJs = "";
+  // ---- 2) Genel CSS düzeltmeleri ----
+  var css = '' +
+    'html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}' +
+    '*{-webkit-tap-highlight-color:transparent;}' +
+    'body{overscroll-behavior-y:none;}' +
+    '.anka-fx-menuitem{white-space:nowrap !important;overflow:visible !important;' +
+    'min-width:max-content;display:flex;flex-direction:column;align-items:center;' +
+    'justify-content:center;gap:4px;line-height:1.2;padding:10px 14px;box-sizing:border-box;}' +
+    '.anka-fx-menuitem *{white-space:nowrap !important;}' +
+    '.anka-fx-menu{display:flex !important;flex-direction:column;gap:10px;' +
+    'height:auto !important;max-height:none !important;overflow:visible !important;' +
+    'padding:10px;box-sizing:border-box;}' +
+    '.anka-fx-gift{bottom:calc(' + GIFT_BOTTOM_PX + 'px + env(safe-area-inset-bottom,0px)) !important;' +
+    'z-index:50 !important;}';
+  try {
+    var st = document.createElement('style');
+    st.id = 'anka-fx-style';
+    st.textContent = css;
+    document.head.appendChild(st);
+  } catch (e) {}
+
+  // ---- 3) FOTO / VİDEO / DOSYA menüsünü bul ve düzelt ----
+  function fixAttachMenu() {
+    var all = document.querySelectorAll('button, div, span, a, li, label');
+    var items = [];
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el.classList.contains('anka-fx-menuitem')) continue;
+      var txt = (el.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      // emoji + kelime şeklinde kısa metinler
+      var clean = txt.replace(/[^A-ZÇĞİÖŞÜ]/g, '');
+      if (MENU_WORDS.indexOf(clean) !== -1 && txt.length < 14 && el.children.length <= 3) {
+        items.push(el);
+      }
+    }
+    // aynı üst kutuda en az 2 öğe varsa menüdür
+    var parents = [];
+    items.forEach(function (el) {
+      var p = el.parentElement;
+      if (p && parents.indexOf(p) === -1) parents.push(p);
+    });
+    parents.forEach(function (p) {
+      var kids = [].filter.call(p.children, function (c) {
+        return items.indexOf(c) !== -1;
+      });
+      if (kids.length >= 2) {
+        p.classList.add('anka-fx-menu');
+        kids.forEach(function (c) { c.classList.add('anka-fx-menuitem'); });
+      }
+    });
+  }
+
+  // ---- 4) Hediye butonunu GÖNDER'in üstünden kaldır ----
+  function fixGift() {
+    var all = document.querySelectorAll('body *');
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el.classList.contains('anka-fx-gift')) continue;
+      if ((el.textContent || '').indexOf('🎁') === -1) continue;
+      if ((el.textContent || '').length > 6) continue;
+      var cur = el;
+      // fixed konumlu atasını bul
+      while (cur && cur !== document.body) {
+        var pos = getComputedStyle(cur).position;
+        if (pos === 'fixed') {
+          cur.classList.add('anka-fx-gift');
+          break;
         }
-        return fxJs;
+        cur = cur.parentElement;
+      }
     }
+  }
 
-    private void hideSplash() {
-        if (splash.getVisibility() == View.VISIBLE) {
-            splash.animate().alpha(0f).setDuration(300)
-                .withEndAction(() -> splash.setVisibility(View.GONE));
-        }
-    }
+  function run() {
+    try { fixAttachMenu(); } catch (e) {}
+    try { fixGift(); } catch (e) {}
+  }
 
-    private void showOffline() {
-        String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
-        html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
-        html += "<p style='opacity:.8;'>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>";
-        html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;'>Yeniden Bağlan</button>";
-        html += "</body></html>";
-        web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
-    }
+  run();
 
-    private void leaveFullscreen() {
-        if (customView == null) return;
-        root.removeView(customView);
-        customView = null;
-        web.setVisibility(View.VISIBLE);
-        getWindow().getDecorView().setSystemUiVisibility(0);
-        if (customCallback != null) customCallback.onCustomViewHidden();
-        customCallback = null;
-    }
-
-    @Override
-    protected void onCreate(Bundle b) {
-        super.onCreate(b);
-        int dark = Color.parseColor("#0B1120");
-        getWindow().setStatusBarColor(dark);
-        getWindow().setNavigationBarColor(dark);
-        getWindow().setBackgroundDrawable(new ColorDrawable(dark));
-
-        root = new FrameLayout(this);
-        web = new WebView(this);
-        web.setBackgroundColor(dark);
-        root.addView(web, new FrameLayout.LayoutParams(-1, -1));
-
-        splash = new FrameLayout(this);
-        splash.setBackgroundColor(dark);
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.ic_launcher);
-        splash.addView(logo, new FrameLayout.LayoutParams(dp(120), dp(120), Gravity.CENTER));
-        root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
-        setContentView(root);
-
-        WebSettings s = web.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setAllowFileAccess(true);
-        s.setLoadsImagesAutomatically(true);
-        s.setMediaPlaybackRequiresUserGesture(true);
-        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        
-        s.setUseWideViewPort(true);
-        s.setLoadWithOverviewMode(true);
-        s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setDatabaseEnabled(true);
-
-        // Güvenli İndirme Yöneticisi
-        web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
-            try {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-            } catch (Exception e) {
-                Toast.makeText(MainActivity.this, "Dosya indirilemedi!", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        web.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
-                Uri u = r.getUrl();
-                String scheme = u.getScheme();
-                String host = u.getHost();
-                boolean isWeb = "http".equals(scheme) || "https".equals(scheme);
-                if (isWeb && host != null && host.endsWith("blogspot.com")) return false;
-                try {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, u);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                } catch (Exception e) {
-                    Toast.makeText(MainActivity.this, "Bu bağlantıyı açacak uygulama bulunamadı", Toast.LENGTH_SHORT).show();
-                }
-                return true;
-            }
-
-            @Override
-            public void onPageFinished(WebView v, String url) {
-                String js = loadFx();
-                if (!js.isEmpty()) v.evaluateJavascript(js, null);
-                hideSplash();
-            }
-
-            @Override
-            public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
-                if (r.isForMainFrame()) showOffline();
-            }
-        });
-
-        web.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public boolean onJsAlert(WebView view, String url, String message, android.webkit.JsResult result) {
-                new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("ANKA BİLDİRİMİ")
-                    .setMessage(message)
-                    .setPositiveButton("TAMAM", (dialog, which) -> result.confirm())
-                    .setCancelable(false)
-                    .show();
-                return true;
-            }
-
-            @Override
-            public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
-                new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("ANKA ONAY")
-                    .setMessage(message)
-                    .setPositiveButton("TAMAM", (dialog, which) -> result.confirm())
-                    .setNegativeButton("İPTAL", (dialog, which) -> result.cancel())
-                    .setCancelable(false)
-                    .show();
-                return true;
-            }
-
-            @Override
-            public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams params) {
-                if (filePathCallback != null) {
-                    filePathCallback.onReceiveValue(null);
-                    filePathCallback = null;
-                }
-                filePathCallback = cb;
-                try {
-                    Intent intent = params.createIntent();
-                    startActivityForResult(intent, PICK);
-                } catch (Exception e) {
-                    try {
-                        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-                        i.addCategory(Intent.CATEGORY_OPENABLE);
-                        i.setType("*/*");
-                        startActivityForResult(Intent.createChooser(i, "Dosya Seç"), PICK);
-                    } catch (Exception ex) {
-                        filePathCallback.onReceiveValue(null);
-                        filePathCallback = null;
-                        return false;
-                    }
-                }
-                return true;
-            }
-
-            @Override
-            public void onShowCustomView(View view, CustomViewCallback cb) {
-                if (customView != null) {
-                    cb.onCustomViewHidden();
-                    return;
-                }
-                customView = view;
-                customCallback = cb;
-                root.addView(view, new FrameLayout.LayoutParams(-1, -1));
-                web.setVisibility(View.GONE);
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-            }
-
-            @Override
-            public void onHideCustomView() {
-                leaveFullscreen();
-            }
-        });
-
-        if (b == null) web.loadUrl(SITE); else web.restoreState(b);
-        web.postDelayed(this::hideSplash, 6000);
-    }
-
-    @Override
-    protected void onActivityResult(int req, int res, Intent data) {
-        if (req == PICK) {
-            if (filePathCallback == null) return;
-            Uri[] result = null;
-            if (res == RESULT_OK) {
-                if (data != null) {
-                    String dataString = data.getDataString();
-                    if (dataString != null) {
-                        result = new Uri[]{Uri.parse(dataString)};
-                    } else if (data.getClipData() != null) {
-                        int count = data.getClipData().getItemCount();
-                        result = new Uri[count];
-                        for (int i = 0; i < count; i++) {
-                            result[i] = data.getClipData().getItemAt(i).getUri();
-                        }
-                    }
-                }
-            }
-            filePathCallback.onReceiveValue(result);
-            filePathCallback = null;
-        } else {
-            super.onActivityResult(req, res, data);
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        web.onPause();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        web.onResume();
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle o) {
-        super.onSaveInstanceState(o);
-        web.saveState(o);
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (customView != null) {
-            leaveFullscreen();
-        } else if (web.canGoBack()) {
-            web.goBack();
-        } else if (System.currentTimeMillis() - lastBack < 2000) {
-            super.onBackPressed();
-        } else {
-            lastBack = System.currentTimeMillis();
-            Toast.makeText(this, "Anka'dan ayrılıyor musun? Çıkmak için bir kez daha geri bas", Toast.LENGTH_SHORT).show();
-        }
-    }
-}
+  // Sayfa içeriği sonradan değişince (sohbet, menü açılması vb.) tekrar uygula
+  var timer = null;
+  try {
+    new MutationObserver(function () {
+      clearTimeout(timer);
+      timer = setTimeout(run, 250);
+    }).observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
+})();
