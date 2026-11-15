@@ -135,9 +135,5 @@
     this.addEventListener('loadend', spinEnd);
     return _send.apply(this, arguments);
   };
-
-  // Sayfa değişirken göster
-  window.addEventListener('beforeunload', function () {
-    sp.classList.add('on');
-  });
+  
 })();
