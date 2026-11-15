@@ -1,6 +1,14 @@
 package com.anka.oyunclub;
 
 import android.Manifest;
+import android.content.ContentValues;
+import android.provider.MediaStore;
+import android.util.Base64;
+import android.webkit.JavascriptInterface;
+import android.webkit.MimeTypeMap;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.animation.ValueAnimator;
@@ -79,7 +87,7 @@ public class MainActivity extends Activity {
     private final Runnable showLoaderRun = () -> { if (pageLoading) showLoader(); };
 
     // İndirme
-    private final Map<Long, String> downloads = new HashMap<>();
+    private final Map<Long, String[]> downloads = new HashMap<>();
     private String[] pendingDl = null; // url, ua, cd, mime, name
 
     private interface Done { void run(boolean ok, String text); }
@@ -321,7 +329,7 @@ public class MainActivity extends Activity {
 
     private void askDownload(String url, String ua, String cd, String mime) {
         if (url.startsWith("blob:") || url.startsWith("data:")) {
-            Toast.makeText(this, "Bu dosya doğrudan indirilemiyor", Toast.LENGTH_SHORT).show();
+            handleBlob(url, mime);
             return;
         }
         final String name = URLUtil.guessFileName(url, cd, mime);
@@ -344,6 +352,7 @@ public class MainActivity extends Activity {
             String cookie = CookieManager.getInstance().getCookie(url);
             if (cookie != null) r.addRequestHeader("cookie", cookie);
             if (ua != null) r.addRequestHeader("User-Agent", ua);
+            r.addRequestHeader("Referer", SITE);
             r.setTitle(name);
             r.setDescription("Anka indiriyor...");
             r.setNotificationVisibility(
@@ -351,10 +360,11 @@ public class MainActivity extends Activity {
             r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             long id = dm.enqueue(r);
-            downloads.put(id, name);
+            downloads.put(id, new String[]{name, url});
             Toast.makeText(this, "İndirme başladı: " + name, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(this, "Dosya indirilemedi!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Dosya indirilemedi, tarayıcıda açılıyor...", Toast.LENGTH_SHORT).show();
+            openExternal(url);
         }
     }
 
@@ -362,8 +372,10 @@ public class MainActivity extends Activity {
         @Override
         public void onReceive(Context c, Intent i) {
             long id = i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-            String name = downloads.remove(id);
-            if (name == null) return;
+            String[] info = downloads.remove(id);
+            if (info == null) return;
+            final String name = info[0];
+            final String dlUrl = info[1];
             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             Cursor cur = dm.query(new DownloadManager.Query().setFilterById(id));
             boolean success = false;
@@ -396,7 +408,7 @@ public class MainActivity extends Activity {
                         });
                 } else {
                     ankaDialog("ANKA İNDİRME", "❌ " + name + "\nindirilemedi!", null,
-                        "TAMAM", null, (ok, t) -> { });
+                        "TARAYICIDA AÇ", "KAPAT", (ok, t) -> { if (ok) openExternal(dlUrl); });
                 }
             } catch (Exception ignored) { }
         }
@@ -417,6 +429,123 @@ public class MainActivity extends Activity {
     }
 
     // ----------------------------------------------------
+
+    // ---------- BLOB / DATA İNDİRMELERİ (site kendi ürettiği dosyalar) ----------
+
+    private void handleBlob(String url, String mime) {
+        if (url.startsWith("data:")) {
+            try {
+                int comma = url.indexOf(',');
+                String meta = url.substring(5, comma);
+                String data = url.substring(comma + 1);
+                String type = meta.contains(";") ? meta.substring(0, meta.indexOf(';')) : meta;
+                byte[] bytes = meta.contains(";base64")
+                    ? Base64.decode(data, Base64.DEFAULT)
+                    : Uri.decode(data).getBytes("UTF-8");
+                askSave(bytes, type.isEmpty() ? "application/octet-stream" : type, "");
+            } catch (Exception e) {
+                Toast.makeText(this, "Dosya indirilemedi!", Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        String js = "(function(){try{var n=window.__ankaLastDl||'';var x=new XMLHttpRequest();"
+            + "x.open('GET','" + url.replace("'", "%27") + "',true);x.responseType='blob';"
+            + "x.onload=function(){var r=new FileReader();r.onloadend=function(){var d=String(r.result);"
+            + "AnkaBridge.saveBase64(d.substring(d.indexOf(',')+1),x.response.type||'application/octet-stream',n);};"
+            + "r.readAsDataURL(x.response);};x.onerror=function(){AnkaBridge.fail();};x.send();}"
+            + "catch(e){AnkaBridge.fail();}})();";
+        web.evaluateJavascript(js, null);
+    }
+
+    private class AnkaBridge {
+        @JavascriptInterface
+        public void saveBase64(String b64, String mime, String name) {
+            try {
+                final byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+                final String m = (mime == null || mime.isEmpty()) ? "application/octet-stream" : mime;
+                final String n = name;
+                runOnUiThread(() -> askSave(bytes, m, n));
+            } catch (Exception e) {
+                fail();
+            }
+        }
+
+        @JavascriptInterface
+        public void fail() {
+            runOnUiThread(() ->
+                Toast.makeText(MainActivity.this, "Dosya indirilemedi!", Toast.LENGTH_SHORT).show());
+        }
+    }
+
+    private void askSave(final byte[] bytes, final String mime, String name) {
+        String clean = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+        if (clean.isEmpty()) {
+            String ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime);
+            clean = "anka_" + System.currentTimeMillis() + (ext != null ? "." + ext : "");
+        }
+        final String fn = clean;
+        ankaDialog("ANKA İNDİRME", "📥 " + fn + "\nindirilsin mi?", null, "İNDİR", "İPTAL",
+            (ok, t) -> { if (ok) saveBytes(bytes, mime, fn); });
+    }
+
+    private void saveBytes(byte[] bytes, final String mime, String fn) {
+        try {
+            Uri out = null;
+            if (Build.VERSION.SDK_INT >= 29) {
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.MediaColumns.DISPLAY_NAME, fn);
+                v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+                v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                out = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                if (out == null) throw new Exception("uri yok");
+                OutputStream os = getContentResolver().openOutputStream(out);
+                if (os == null) throw new Exception("akis yok");
+                os.write(bytes);
+                os.close();
+            } else {
+                if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 99);
+                    Toast.makeText(this, "Depolama iznini ver, sonra tekrar dene", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                dir.mkdirs();
+                FileOutputStream os = new FileOutputStream(new File(dir, fn));
+                os.write(bytes);
+                os.close();
+            }
+            final Uri file = out;
+            ankaDialog("ANKA İNDİRME",
+                "✅ " + fn + "\nindirildi!" + (file == null ? "\n(İndirilenler klasörüne bak)" : ""),
+                null, file != null ? "AÇ" : "TAMAM", file != null ? "KAPAT" : null,
+                (ok, t) -> { if (ok && file != null) openFile(file, mime); });
+        } catch (Exception e) {
+            Toast.makeText(this, "Dosya kaydedilemedi!", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openFile(Uri file, String type) {
+        try {
+            Intent v = new Intent(Intent.ACTION_VIEW);
+            v.setDataAndType(file, type);
+            v.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(v);
+        } catch (Exception e) {
+            Toast.makeText(this, "Bu dosyayı açacak uygulama yok. İndirilenler klasörüne bak.",
+                Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openExternal(String url) {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            Toast.makeText(this, "Bağlantı açılamadı", Toast.LENGTH_SHORT).show();
+        }
+    }
 
     private void showOffline() {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
@@ -479,6 +608,8 @@ public class MainActivity extends Activity {
 
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
+
+        web.addJavascriptInterface(new AnkaBridge(), "AnkaBridge");
 
         // İndirme bitince haber veren alıcı (2 = RECEIVER_EXPORTED)
         IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
