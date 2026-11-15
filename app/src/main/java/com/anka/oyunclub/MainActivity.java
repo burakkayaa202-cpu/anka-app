@@ -1,14 +1,27 @@
 package com.anka.oyunclub;
 
+import android.Manifest;
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
+import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.app.Dialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.text.Html;
 import android.text.InputType;
 import android.util.TypedValue;
@@ -17,8 +30,11 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.animation.LinearInterpolator;
+import android.webkit.CookieManager;
 import android.webkit.JsPromptResult;
 import android.webkit.JsResult;
+import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -35,11 +51,15 @@ import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
     private static final String SITE = "https://ankaoyunclub.blogspot.com";
     private static final int PICK = 1;
+    private static final int PERM_STORAGE = 2;
+
     private FrameLayout root;
     private WebView web;
     private FrameLayout splash;
@@ -48,6 +68,19 @@ public class MainActivity extends Activity {
     private WebChromeClient.CustomViewCallback customCallback;
     private long lastBack = 0;
     private String fxJs = null;
+
+    // Anka yükleme animasyonu
+    private LinearLayout loader;
+    private View ring;
+    private ImageView loaderLogo;
+    private ObjectAnimator ringAnim;
+    private ObjectAnimator pulseAnim;
+    private boolean pageLoading = false;
+    private final Runnable showLoaderRun = () -> { if (pageLoading) showLoader(); };
+
+    // İndirme
+    private final Map<Long, String> downloads = new HashMap<>();
+    private String[] pendingDl = null; // url, ua, cd, mime, name
 
     private interface Done { void run(boolean ok, String text); }
 
@@ -75,6 +108,88 @@ public class MainActivity extends Activity {
         if (splash.getVisibility() == View.VISIBLE) {
             splash.animate().alpha(0f).setDuration(300)
                 .withEndAction(() -> splash.setVisibility(View.GONE));
+        }
+    }
+
+    // ---------- ANKA YÜKLEME HALKASI ----------
+
+    private void buildLoader() {
+        loader = new LinearLayout(this);
+        loader.setOrientation(LinearLayout.VERTICAL);
+        loader.setGravity(Gravity.CENTER);
+        loader.setBackgroundColor(Color.parseColor("#990B1120"));
+        loader.setVisibility(View.GONE);
+
+        FrameLayout stack = new FrameLayout(this);
+
+        // Dönen neon halka
+        ring = new View(this);
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.RING);
+        g.setThickness(dp(4));
+        g.setInnerRadius(dp(46));
+        g.setUseLevel(false);
+        g.setGradientType(GradientDrawable.SWEEP_GRADIENT);
+        g.setColors(new int[]{Color.parseColor("#0000E5FF"), Color.parseColor("#FF00E5FF")});
+        ring.setBackground(g);
+        stack.addView(ring, new FrameLayout.LayoutParams(dp(100), dp(100)));
+
+        // Ortada nabız gibi atan Anka logosu
+        loaderLogo = new ImageView(this);
+        loaderLogo.setImageResource(R.drawable.ic_launcher);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(56), dp(56), Gravity.CENTER);
+        stack.addView(loaderLogo, lp);
+
+        loader.addView(stack, new LinearLayout.LayoutParams(dp(100), dp(100)));
+
+        TextView label = new TextView(this);
+        label.setText("ANKA YÜKLENİYOR");
+        label.setTextColor(Color.parseColor("#00E5FF"));
+        label.setTypeface(Typeface.DEFAULT_BOLD);
+        label.setLetterSpacing(0.2f);
+        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
+        tl.topMargin = dp(16);
+        loader.addView(label, tl);
+
+        ringAnim = ObjectAnimator.ofFloat(ring, "rotation", 0f, 360f);
+        ringAnim.setDuration(1000);
+        ringAnim.setRepeatCount(ValueAnimator.INFINITE);
+        ringAnim.setInterpolator(new LinearInterpolator());
+
+        pulseAnim = ObjectAnimator.ofPropertyValuesHolder(loaderLogo,
+            PropertyValuesHolder.ofFloat("scaleX", 0.85f, 1.1f),
+            PropertyValuesHolder.ofFloat("scaleY", 0.85f, 1.1f),
+            PropertyValuesHolder.ofFloat("alpha", 0.6f, 1f));
+        pulseAnim.setDuration(700);
+        pulseAnim.setRepeatCount(ValueAnimator.INFINITE);
+        pulseAnim.setRepeatMode(ValueAnimator.REVERSE);
+    }
+
+    private void scheduleLoader() {
+        pageLoading = true;
+        web.removeCallbacks(showLoaderRun);
+        web.postDelayed(showLoaderRun, 500); // 0.5 sn'den uzun sürerse göster
+    }
+
+    private void showLoader() {
+        if (loader.getVisibility() == View.VISIBLE) return;
+        loader.setAlpha(0f);
+        loader.setVisibility(View.VISIBLE);
+        loader.animate().alpha(1f).setDuration(200).start();
+        ringAnim.start();
+        pulseAnim.start();
+    }
+
+    private void hideLoader() {
+        pageLoading = false;
+        web.removeCallbacks(showLoaderRun);
+        if (loader.getVisibility() == View.VISIBLE) {
+            loader.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+                loader.setVisibility(View.GONE);
+                ringAnim.cancel();
+                pulseAnim.cancel();
+            }).start();
         }
     }
 
@@ -202,6 +317,105 @@ public class MainActivity extends Activity {
         d.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
+    // ---------- ANKA İNDİRME YÖNETİCİSİ ----------
+
+    private void askDownload(String url, String ua, String cd, String mime) {
+        if (url.startsWith("blob:") || url.startsWith("data:")) {
+            Toast.makeText(this, "Bu dosya doğrudan indirilemiyor", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final String name = URLUtil.guessFileName(url, cd, mime);
+        ankaDialog("ANKA İNDİRME", "📥 " + name + "\nindirilsin mi?", null, "İNDİR", "İPTAL",
+            (ok, t) -> { if (ok) startDownload(url, ua, cd, mime, name); });
+    }
+
+    private void startDownload(String url, String ua, String cd, String mime, String name) {
+        // Android 9 ve altında depolama izni lazım
+        if (Build.VERSION.SDK_INT < 29
+            && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+               != PackageManager.PERMISSION_GRANTED) {
+            pendingDl = new String[]{url, ua, cd, mime, name};
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERM_STORAGE);
+            return;
+        }
+        try {
+            DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
+            if (mime != null && !mime.isEmpty()) r.setMimeType(mime);
+            String cookie = CookieManager.getInstance().getCookie(url);
+            if (cookie != null) r.addRequestHeader("cookie", cookie);
+            if (ua != null) r.addRequestHeader("User-Agent", ua);
+            r.setTitle(name);
+            r.setDescription("Anka indiriyor...");
+            r.setNotificationVisibility(
+                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            long id = dm.enqueue(r);
+            downloads.put(id, name);
+            Toast.makeText(this, "İndirme başladı: " + name, Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Dosya indirilemedi!", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private final BroadcastReceiver dlReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            long id = i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+            String name = downloads.remove(id);
+            if (name == null) return;
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            Cursor cur = dm.query(new DownloadManager.Query().setFilterById(id));
+            boolean success = false;
+            if (cur != null) {
+                if (cur.moveToFirst()) {
+                    int col = cur.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                    success = col >= 0 && cur.getInt(col) == DownloadManager.STATUS_SUCCESSFUL;
+                }
+                cur.close();
+            }
+            if (isFinishing() || isDestroyed()) return;
+            try {
+                if (success) {
+                    final Uri file = dm.getUriForDownloadedFile(id);
+                    final String type = dm.getMimeTypeForDownloadedFile(id);
+                    ankaDialog("ANKA İNDİRME", "✅ " + name + "\nindirildi!", null, "AÇ", "KAPAT",
+                        (ok, t) -> {
+                            if (!ok || file == null) return;
+                            try {
+                                Intent v = new Intent(Intent.ACTION_VIEW);
+                                v.setDataAndType(file, type);
+                                v.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    | Intent.FLAG_ACTIVITY_NEW_TASK);
+                                startActivity(v);
+                            } catch (Exception e) {
+                                Toast.makeText(MainActivity.this,
+                                    "Bu dosyayı açacak uygulama yok. İndirilenler klasörüne bak.",
+                                    Toast.LENGTH_LONG).show();
+                            }
+                        });
+                } else {
+                    ankaDialog("ANKA İNDİRME", "❌ " + name + "\nindirilemedi!", null,
+                        "TAMAM", null, (ok, t) -> { });
+                }
+            } catch (Exception ignored) { }
+        }
+    };
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        if (code == PERM_STORAGE && pendingDl != null) {
+            String[] p = pendingDl;
+            pendingDl = null;
+            if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+                startDownload(p[0], p[1], p[2], p[3], p[4]);
+            } else {
+                Toast.makeText(this, "Depolama izni verilmedi", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
     // ----------------------------------------------------
 
     private void showOffline() {
@@ -236,6 +450,9 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(dark);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
 
+        buildLoader();
+        root.addView(loader, new FrameLayout.LayoutParams(-1, -1));
+
         splash = new FrameLayout(this);
         splash.setBackgroundColor(dark);
         ImageView logo = new ImageView(this);
@@ -263,16 +480,14 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
-        // Güvenli İndirme Yöneticisi
-        web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
-            try {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-            } catch (Exception e) {
-                Toast.makeText(MainActivity.this, "Dosya indirilemedi!", Toast.LENGTH_SHORT).show();
-            }
-        });
+        // İndirme bitince haber veren alıcı (2 = RECEIVER_EXPORTED)
+        IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+        if (Build.VERSION.SDK_INT >= 26) registerReceiver(dlReceiver, f, 2);
+        else registerReceiver(dlReceiver, f);
+
+        // Anka İndirme Yöneticisi
+        web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) ->
+            askDownload(url, userAgent, contentDisposition, mimetype));
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -293,15 +508,25 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageStarted(WebView v, String url, Bitmap favicon) {
+                super.onPageStarted(v, url, favicon);
+                scheduleLoader();
+            }
+
+            @Override
             public void onPageFinished(WebView v, String url) {
                 String js = loadFx();
                 if (!js.isEmpty()) v.evaluateJavascript(js, null);
+                hideLoader();
                 hideSplash();
             }
 
             @Override
             public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
-                if (r.isForMainFrame()) showOffline();
+                if (r.isForMainFrame()) {
+                    hideLoader();
+                    showOffline();
+                }
             }
         });
 
@@ -422,6 +647,14 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         web.onResume();
+    }
+
+    @Override
+    protected void onDestroy() {
+        try { unregisterReceiver(dlReceiver); } catch (Exception ignored) { }
+        if (ringAnim != null) ringAnim.cancel();
+        if (pulseAnim != null) pulseAnim.cancel();
+        super.onDestroy();
     }
 
     @Override
