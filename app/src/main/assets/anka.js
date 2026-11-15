@@ -3,8 +3,7 @@
   if (window.__ankaFx) return;
   window.__ankaFx = true;
 
-  // ---- AYARLAR (gerekirse burayı değiştir) ----
-  var GIFT_BOTTOM_PX = 96;      // hediye butonunu alttan ne kadar yukarı alsın
+  // ---- AYARLAR ----
   var MENU_WORDS = ['FOTO', 'VİDEO', 'VIDEO', 'DOSYA']; // + menüsündeki yazılar
 
   // ---- 1) Yakınlaştırmayı kapat, ölçüyü sabitle ----
@@ -29,9 +28,7 @@
     '.anka-fx-menuitem *{white-space:nowrap !important;}' +
     '.anka-fx-menu{display:flex !important;flex-direction:column;gap:10px;' +
     'height:auto !important;max-height:none !important;overflow:visible !important;' +
-    'padding:10px;box-sizing:border-box;}' +
-    '.anka-fx-gift{bottom:calc(' + GIFT_BOTTOM_PX + 'px + env(safe-area-inset-bottom,0px)) !important;' +
-    'z-index:50 !important;}';
+    'padding:10px;box-sizing:border-box;}';
   try {
     var st = document.createElement('style');
     st.id = 'anka-fx-style';
@@ -47,13 +44,11 @@
       var el = all[i];
       if (el.classList.contains('anka-fx-menuitem')) continue;
       var txt = (el.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
-      // emoji + kelime şeklinde kısa metinler
       var clean = txt.replace(/[^A-ZÇĞİÖŞÜ]/g, '');
       if (MENU_WORDS.indexOf(clean) !== -1 && txt.length < 14 && el.children.length <= 3) {
         items.push(el);
       }
     }
-    // aynı üst kutuda en az 2 öğe varsa menüdür
     var parents = [];
     items.forEach(function (el) {
       var p = el.parentElement;
@@ -70,35 +65,13 @@
     });
   }
 
-  // ---- 4) Hediye butonunu GÖNDER'in üstünden kaldır ----
-  function fixGift() {
-    var all = document.querySelectorAll('body *');
-    for (var i = 0; i < all.length; i++) {
-      var el = all[i];
-      if (el.classList.contains('anka-fx-gift')) continue;
-      if ((el.textContent || '').indexOf('🎁') === -1) continue;
-      if ((el.textContent || '').length > 6) continue;
-      var cur = el;
-      // fixed konumlu atasını bul
-      while (cur && cur !== document.body) {
-        var pos = getComputedStyle(cur).position;
-        if (pos === 'fixed') {
-          cur.classList.add('anka-fx-gift');
-          break;
-        }
-        cur = cur.parentElement;
-      }
-    }
-  }
-
   function run() {
     try { fixAttachMenu(); } catch (e) {}
-    try { fixGift(); } catch (e) {}
   }
 
   run();
 
-  // Sayfa içeriği sonradan değişince (sohbet, menü açılması vb.) tekrar uygula
+  // Sayfa içeriği sonradan değişince tekrar uygula
   var timer = null;
   try {
     new MutationObserver(function () {
