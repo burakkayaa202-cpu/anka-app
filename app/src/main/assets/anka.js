@@ -135,5 +135,19 @@
     this.addEventListener('loadend', spinEnd);
     return _send.apply(this, arguments);
   };
-  
+
+  // Sayfa değişirken göster
+  window.addEventListener('beforeunload', function () {
+    sp.classList.add('on');
+  });
+  // ---- 5) İndirme dosya adını yakala (blob indirmeleri için) ----
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[download]') : null;
+    if (a) window.__ankaLastDl = a.getAttribute('download') || '';
+  }, true);
+  var _aclick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    if (this.hasAttribute('download')) window.__ankaLastDl = this.getAttribute('download') || '';
+    return _aclick.apply(this, arguments);
+  };
 })();
