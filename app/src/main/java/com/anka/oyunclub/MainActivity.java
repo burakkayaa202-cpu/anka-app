@@ -1,6 +1,10 @@
 package com.anka.oyunclub;
 
 import android.Manifest;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.ComponentName;
+import android.content.SharedPreferences;
 import android.provider.Settings;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -101,6 +105,10 @@ public class MainActivity extends Activity {
     private long updateId = -1;
     private Uri pendingInstall = null;
     private boolean updateChecked = false;
+
+    // Bildirimler
+    static volatile boolean foreground = false;
+    private boolean notifAsked = false;
 
     private interface Done { void run(boolean ok, String text); }
 
@@ -476,6 +484,16 @@ public class MainActivity extends Activity {
 
     private class AnkaBridge {
         @JavascriptInterface
+        public void setUser(String user) {
+            final String u = user == null ? "" : user.trim();
+            SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
+            if (!u.equals(sp.getString("user", ""))) {
+                sp.edit().putString("user", u).apply();
+            }
+            if (!u.isEmpty()) runOnUiThread(() -> askNotifPermission());
+        }
+
+        @JavascriptInterface
         public void saveBase64(String b64, String mime, String name) {
             try {
                 final byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
@@ -690,6 +708,32 @@ public class MainActivity extends Activity {
         }
     }
 
+    // ---------- BİLDİRİMLER ----------
+
+    private void askNotifPermission() {
+        if (notifAsked) return;
+        notifAsked = true;
+        if (Build.VERSION.SDK_INT >= 33
+            && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+               != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 3);
+        }
+    }
+
+    private void scheduleNotifyJob() {
+        try {
+            JobScheduler js = (JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
+            if (js == null) return;
+            if (Build.VERSION.SDK_INT >= 24 && js.getPendingJob(1001) != null) return;
+            JobInfo job = new JobInfo.Builder(1001, new ComponentName(this, AnkaNotifyJob.class))
+                .setPeriodic(15 * 60 * 1000L)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .setPersisted(true)
+                .build();
+            js.schedule(job);
+        } catch (Exception ignored) { }
+    }
+
     private void showOffline() {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
         html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
@@ -753,6 +797,7 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
 
         web.addJavascriptInterface(new AnkaBridge(), "AnkaBridge");
+        scheduleNotifyJob();
 
         // İndirme bitince haber veren alıcı (2 = RECEIVER_EXPORTED)
         IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
@@ -915,12 +960,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        foreground = false;
         web.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        foreground = true;
         web.onResume();
         if (pendingInstall != null && Build.VERSION.SDK_INT >= 26
             && getPackageManager().canRequestPackageInstalls()) {
