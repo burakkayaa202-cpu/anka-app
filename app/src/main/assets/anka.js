@@ -5,6 +5,7 @@
 
   // ---- AYARLAR ----
   var MENU_WORDS = ['FOTO', 'VİDEO', 'VIDEO', 'DOSYA']; // + menüsündeki yazılar
+  var SPIN_DELAY = 400; // ms: yükleme bu kadar sürerse halka çıksın
 
   // ---- 1) Yakınlaştırmayı kapat, ölçüyü sabitle ----
   try {
@@ -79,4 +80,64 @@
       timer = setTimeout(run, 250);
     }).observe(document.body, { childList: true, subtree: true });
   } catch (e) {}
+
+  // ---- 4) Yavaş yüklenince dönen halka ----
+  var pending = 0, spinTimer = null;
+
+  var sc = document.createElement('style');
+  sc.textContent =
+    '#anka-spin{position:fixed;inset:0;z-index:2147483647;display:none;' +
+    'align-items:center;justify-content:center;background:rgba(5,8,16,.45);' +
+    'pointer-events:none;}' +
+    '#anka-spin.on{display:flex;}' +
+    '#anka-spin i{width:56px;height:56px;border-radius:50%;' +
+    'border:4px solid rgba(0,229,255,.2);border-top-color:#00e5ff;' +
+    'box-shadow:0 0 18px rgba(0,229,255,.6);animation:ankaSpin .8s linear infinite;}' +
+    '@keyframes ankaSpin{to{transform:rotate(360deg);}}';
+  document.head.appendChild(sc);
+
+  var sp = document.createElement('div');
+  sp.id = 'anka-spin';
+  sp.innerHTML = '<i></i>';
+  document.body.appendChild(sp);
+
+  function spinStart() {
+    pending++;
+    if (!spinTimer) spinTimer = setTimeout(function () {
+      if (pending > 0) sp.classList.add('on');
+    }, SPIN_DELAY);
+  }
+  function spinEnd() {
+    pending = Math.max(0, pending - 1);
+    if (pending === 0) {
+      clearTimeout(spinTimer);
+      spinTimer = null;
+      sp.classList.remove('on');
+    }
+  }
+
+  // fetch isteklerini izle
+  if (window.fetch) {
+    var _fetch = window.fetch;
+    window.fetch = function () {
+      spinStart();
+      return _fetch.apply(this, arguments).then(
+        function (r) { spinEnd(); return r; },
+        function (e) { spinEnd(); throw e; }
+      );
+    };
+  }
+
+  // XHR isteklerini izle
+  var _send = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function () {
+    spinStart();
+    this.addEventListener('loadend', spinEnd);
+    return _send.apply(this, arguments);
+  };
+
+  // Sayfa değişirken göster
+  window.addEventListener('beforeunload', function () {
+    sp.classList.add('on');
+  });
 })();
