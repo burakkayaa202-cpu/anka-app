@@ -1,6 +1,11 @@
 package com.anka.oyunclub;
 
 import android.Manifest;
+import android.provider.Settings;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import android.content.ContentValues;
 import android.provider.MediaStore;
 import android.util.Base64;
@@ -89,6 +94,13 @@ public class MainActivity extends Activity {
     // İndirme
     private final Map<Long, String[]> downloads = new HashMap<>();
     private String[] pendingDl = null; // url, ua, cd, mime, name
+
+    // Güncelleme: her yeni sürümde APP_VERSION'ı yükselt (GitHub release etiketiyle aynı mantık)
+    private static final String APP_VERSION = "1.0";
+    private static final String REPO = "burakkayaa202-cpu/anka-app";
+    private long updateId = -1;
+    private Uri pendingInstall = null;
+    private boolean updateChecked = false;
 
     private interface Done { void run(boolean ok, String text); }
 
@@ -372,6 +384,11 @@ public class MainActivity extends Activity {
         @Override
         public void onReceive(Context c, Intent i) {
             long id = i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+            if (id == updateId) {
+                updateId = -1;
+                finishUpdate(id);
+                return;
+            }
             String[] info = downloads.remove(id);
             if (info == null) return;
             final String name = info[0];
@@ -547,6 +564,132 @@ public class MainActivity extends Activity {
         }
     }
 
+    // ---------- ANKA OTOMATİK GÜNCELLEME (GitHub Releases) ----------
+
+    private void checkUpdate() {
+        if (updateChecked) return;
+        updateChecked = true;
+        new Thread(() -> {
+            try {
+                HttpURLConnection c = (HttpURLConnection)
+                    new URL("https://api.github.com/repos/" + REPO + "/releases/latest").openConnection();
+                c.setConnectTimeout(8000);
+                c.setReadTimeout(8000);
+                c.setRequestProperty("Accept", "application/vnd.github+json");
+                if (c.getResponseCode() != 200) return;
+                InputStream in = c.getInputStream();
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                in.close();
+                JSONObject j = new JSONObject(out.toString("UTF-8"));
+                final String tag = j.optString("tag_name", "");
+                final String notes = j.optString("body", "");
+                String apk = null;
+                JSONArray assets = j.optJSONArray("assets");
+                if (assets != null) {
+                    for (int i = 0; i < assets.length(); i++) {
+                        JSONObject a = assets.getJSONObject(i);
+                        if (a.optString("name", "").toLowerCase(Locale.ROOT).endsWith(".apk")) {
+                            apk = a.optString("browser_download_url", null);
+                            break;
+                        }
+                    }
+                }
+                if (apk == null || !isNewer(tag, APP_VERSION)) return;
+                final String fApk = apk;
+                runOnUiThread(() -> showUpdate(tag, notes, fApk));
+            } catch (Exception ignored) { }
+        }).start();
+    }
+
+    private boolean isNewer(String remote, String local) {
+        try {
+            String[] a = remote.replaceAll("[^0-9.]", "").split("\\.");
+            String[] b = local.replaceAll("[^0-9.]", "").split("\\.");
+            int len = Math.max(a.length, b.length);
+            for (int i = 0; i < len; i++) {
+                int x = i < a.length && !a[i].isEmpty() ? Integer.parseInt(a[i]) : 0;
+                int y = i < b.length && !b[i].isEmpty() ? Integer.parseInt(b[i]) : 0;
+                if (x != y) return x > y;
+            }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    private void showUpdate(String tag, String notes, final String apkUrl) {
+        if (isFinishing() || isDestroyed()) return;
+        String n = notes == null ? "" : notes.trim();
+        if (n.length() > 300) n = n.substring(0, 300) + "...";
+        String msg = "🚀 Yeni sürüm çıktı: " + tag + (n.isEmpty() ? "" : "\n\n" + n);
+        try {
+            ankaDialog("ANKA GÜNCELLEME", msg, null, "GÜNCELLE", "SONRA",
+                (ok, t) -> { if (ok) startUpdateDownload(apkUrl); });
+        } catch (Exception ignored) { }
+    }
+
+    private void startUpdateDownload(String apkUrl) {
+        try {
+            File old = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "anka-update.apk");
+            if (old.exists()) old.delete();
+            DownloadManager.Request r = new DownloadManager.Request(Uri.parse(apkUrl));
+            r.setTitle("Anka güncellemesi");
+            r.setDescription("Yeni sürüm indiriliyor...");
+            r.setMimeType("application/vnd.android.package-archive");
+            r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            r.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "anka-update.apk");
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            updateId = dm.enqueue(r);
+            Toast.makeText(this, "Güncelleme indiriliyor...", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Güncelleme indirilemedi!", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void finishUpdate(long id) {
+        DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        Cursor cur = dm.query(new DownloadManager.Query().setFilterById(id));
+        boolean success = false;
+        if (cur != null) {
+            if (cur.moveToFirst()) {
+                int col = cur.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                success = col >= 0 && cur.getInt(col) == DownloadManager.STATUS_SUCCESSFUL;
+            }
+            cur.close();
+        }
+        Uri u = success ? dm.getUriForDownloadedFile(id) : null;
+        if (u == null) {
+            Toast.makeText(this, "Güncelleme indirilemedi!", Toast.LENGTH_LONG).show();
+            return;
+        }
+        installApk(u);
+    }
+
+    private void installApk(final Uri apk) {
+        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            pendingInstall = apk;
+            ankaDialog("İZİN GEREKLİ",
+                "Güncellemeyi kurmak için Anka'ya \"bu kaynaktan yüklemeye izin ver\" iznini açman lazım.",
+                null, "AYARLARA GİT", "İPTAL",
+                (ok, t) -> {
+                    if (!ok) { pendingInstall = null; return; }
+                    Intent s = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName()));
+                    startActivity(s);
+                });
+            return;
+        }
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(apk, "application/vnd.android.package-archive");
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            Toast.makeText(this, "Güncelleme kurulamadı", Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void showOffline() {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
         html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
@@ -650,6 +793,7 @@ public class MainActivity extends Activity {
                 if (!js.isEmpty()) v.evaluateJavascript(js, null);
                 hideLoader();
                 hideSplash();
+                checkUpdate();
             }
 
             @Override
@@ -778,6 +922,12 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         web.onResume();
+        if (pendingInstall != null && Build.VERSION.SDK_INT >= 26
+            && getPackageManager().canRequestPackageInstalls()) {
+            Uri u = pendingInstall;
+            pendingInstall = null;
+            installApk(u);
+        }
     }
 
     @Override
