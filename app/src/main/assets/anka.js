@@ -150,4 +150,15 @@
     if (this.hasAttribute('download')) window.__ankaLastDl = this.getAttribute('download') || '';
     return _aclick.apply(this, arguments);
   };
+  // ---- 6) Bildirimler için giriş yapan kullanıcıyı uygulamaya bildir ----
+  function syncUser() {
+    try {
+      var u = localStorage.getItem('anka_isLogged') === 'true'
+        ? (localStorage.getItem('anka_user') || '') : '';
+      if (window.AnkaBridge && window.AnkaBridge.setUser) window.AnkaBridge.setUser(u);
+    } catch (e) {}
+  }
+  syncUser();
+  setTimeout(syncUser, 2000);
+  setInterval(syncUser, 10000);
 })();
