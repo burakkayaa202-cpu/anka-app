@@ -12,6 +12,7 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -22,18 +23,22 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 public class AnkaNotifyJob extends JobService {
     private static final String DB = "https://anka-apk-default-rtdb.firebaseio.com";
     private static final String CHANNEL = "anka_bildirim";
+    private static final String REPO = "burakkayaa202-cpu/anka-app";
+    private static final String APP_VERSION = "1.2";
 
     @Override
     public boolean onStartJob(final JobParameters params) {
         new Thread(() -> {
             try { 
                 check(); 
+                checkUpdateNotification();
             } catch (Throwable ignored) { 
-                // Thread dışına çıkabilecek tüm hatalar (Error ve Exception) yakalandı[span_0](start_span)[span_0](end_span)
+                // Thread dışına çıkabilecek tüm hatalar yakalandı
             }
             jobFinished(params, false);
         }).start();
@@ -59,6 +64,51 @@ public class AnkaNotifyJob extends JobService {
         String s = out.toString("UTF-8").trim();
         if (s.isEmpty() || s.equals("null")) return null;
         return new JSONObject(s);
+    }
+
+    // ---------- GÜNCELLENEN SÜRÜM KONTROLÜ (BİLDİRİM İÇİN) ----------
+    private void checkUpdateNotification() {
+        try {
+            HttpURLConnection c = (HttpURLConnection)
+                new URL("https://api.github.com/repos/" + REPO + "/releases/latest").openConnection();
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(8000);
+            c.setRequestProperty("Accept", "application/vnd.github+json");
+            if (c.getResponseCode() != 200) return;
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            in.close();
+            JSONObject j = new JSONObject(out.toString("UTF-8"));
+            String tag = j.optString("tag_name", "");
+            
+            if (!tag.isEmpty() && isNewer(tag, APP_VERSION)) {
+                SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
+                String notifiedVer = sp.getString("last_notified_version", "");
+                
+                // Aynı sürüm için tekrar tekrar bildirim atmasın
+                if (!notifiedVer.equals(tag)) {
+                    sp.edit().putString("last_notified_version", tag).apply();
+                    show(this, 9999, "🚀 Yeni Sürüm Çıktı: " + tag, "Anka APK'nın yeni sürümü hazır, hemen indir!");
+                }
+            }
+        } catch (Exception ignored) { }
+    }
+
+    private boolean isNewer(String remote, String local) {
+        try {
+            String[] a = remote.replaceAll("[^0-9.]", "").split("\\.");
+            String[] b = local.replaceAll("[^0-9.]", "").split("\\.");
+            int len = Math.max(a.length, b.length);
+            for (int i = 0; i < len; i++) {
+                int x = i < a.length && !a[i].isEmpty() ? Integer.parseInt(a[i]) : 0;
+                int y = i < b.length && !b[i].isEmpty() ? Integer.parseInt(b[i]) : 0;
+                if (x != y) return x > y;
+            }
+        } catch (Exception ignored) { }
+        return false;
     }
 
     private void check() throws Exception {
@@ -160,7 +210,7 @@ public class AnkaNotifyJob extends JobService {
             if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH);
             nm.notify(id, b.build());
         } catch (Throwable ignored) {
-            // Bildirim gösterirken oluşabilecek simge/sistem hatalarını yut ve çökmesini engelle[span_1](start_span)[span_1](end_span)
+            // Bildirim gösterirken oluşabilecek hataları yut
         }
     }
 }
