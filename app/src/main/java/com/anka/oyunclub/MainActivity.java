@@ -799,10 +799,17 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new AnkaBridge(), "AnkaBridge");
         scheduleNotifyJob();
 
-        // İndirme bitince haber veren alıcı (2 = RECEIVER_EXPORTED)
+        // GÜVENLİ RECEIVER KAYDI (Android 9 çökmesini önler)
         IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        if (Build.VERSION.SDK_INT >= 26) registerReceiver(dlReceiver, f, 2);
-        else registerReceiver(dlReceiver, f);
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(dlReceiver, f, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(dlReceiver, f);
+            }
+        } catch (Exception ignored) {
+            try { registerReceiver(dlReceiver, f); } catch (Exception ignored2) {}
+        }
 
         // Anka İndirme Yöneticisi
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) ->
