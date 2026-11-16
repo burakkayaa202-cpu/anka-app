@@ -25,7 +25,7 @@ public class LeaderboardWidgetProvider extends AppWidgetProvider {
             
             ref.addListenerForSingleValueEvent(new ValueEventListener() {
                 @Override
-                public onDataChange(@NonNull DataSnapshot snapshot) {
+                public void onDataChange(@NonNull DataSnapshot snapshot) {
                     int sira = 1;
                     
                     for (DataSnapshot child : snapshot.getChildren()) {
