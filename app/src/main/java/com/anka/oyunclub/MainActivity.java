@@ -100,7 +100,7 @@ public class MainActivity extends Activity {
     private String[] pendingDl = null; // url, ua, cd, mime, name
 
     // Güncelleme: her yeni sürümde APP_VERSION'ı yükselt (GitHub release etiketiyle aynı mantık)
-    private static final String APP_VERSION = "1.2";
+    private static final String APP_VERSION = "1.3";
     private static final String REPO = "burakkayaa202-cpu/anka-app";
     private long updateId = -1;
     private Uri pendingInstall = null;
