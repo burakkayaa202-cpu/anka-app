@@ -75,18 +75,21 @@
   // Sayfa içeriği sonradan değişince tekrar uygula
   var timer = null;
   try {
-    new MutationObserver(function () {
-      clearTimeout(timer);
-      timer = setTimeout(run, 250);
-    }).observe(document.body, { childList: true, subtree: true });
+    var mo = window.MutationObserver || window.WebKitMutationObserver;
+    if (mo) {
+      new mo(function () {
+        clearTimeout(timer);
+        timer = setTimeout(run, 250);
+      }).observe(document.body, { childList: true, subtree: true });
+    }
   } catch (e) {}
 
-  // ---- 4) Yavaş yüklenince dönen halka ----
+  // ---- 4) Yavaş yüklenince dönen halka (Android 9 uyumlu eski pozisyon kodları) ----
   var pending = 0, spinTimer = null;
 
   var sc = document.createElement('style');
   sc.textContent =
-    '#anka-spin{position:fixed;inset:0;z-index:2147483647;display:none;' +
+    '#anka-spin{position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483647;display:none;' +
     'align-items:center;justify-content:center;background:rgba(5,8,16,.45);' +
     'pointer-events:none;}' +
     '#anka-spin.on{display:flex;}' +
@@ -129,27 +132,50 @@
   }
 
   // XHR isteklerini izle
-  var _send = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.send = function () {
-    spinStart();
-    this.addEventListener('loadend', spinEnd);
-    return _send.apply(this, arguments);
-  };
+  if (window.XMLHttpRequest && XMLHttpRequest.prototype.send) {
+    var _send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function () {
+      spinStart();
+      try {
+        this.addEventListener('loadend', spinEnd);
+      } catch (e) {
+        this.onreadystatechange = function() {
+          if (this.readyState === 4) spinEnd();
+        };
+      }
+      return _send.apply(this, arguments);
+    };
+  }
 
   // Sayfa değişirken göster
   window.addEventListener('beforeunload', function () {
-    sp.classList.add('on');
+    try { sp.classList.add('on'); } catch(e){}
   });
+
   // ---- 5) İndirme dosya adını yakala (blob indirmeleri için) ----
   document.addEventListener('click', function (e) {
-    var a = e.target && e.target.closest ? e.target.closest('a[download]') : null;
-    if (a) window.__ankaLastDl = a.getAttribute('download') || '';
+    try {
+      var target = e.target;
+      while (target && target !== document) {
+        if (target.tagName === 'A' && target.hasAttribute('download')) {
+          window.__ankaLastDl = target.getAttribute('download') || '';
+          break;
+        }
+        target = target.parentNode;
+      }
+    } catch (err) {}
   }, true);
-  var _aclick = HTMLAnchorElement.prototype.click;
-  HTMLAnchorElement.prototype.click = function () {
-    if (this.hasAttribute('download')) window.__ankaLastDl = this.getAttribute('download') || '';
-    return _aclick.apply(this, arguments);
-  };
+
+  if (window.HTMLAnchorElement && HTMLAnchorElement.prototype.click) {
+    var _aclick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      try {
+        if (this.hasAttribute('download')) window.__ankaLastDl = this.getAttribute('download') || '';
+      } catch (e) {}
+      return _aclick.apply(this, arguments);
+    };
+  }
+
   // ---- 6) Bildirimler için giriş yapan kullanıcıyı uygulamaya bildir ----
   function syncUser() {
     try {
