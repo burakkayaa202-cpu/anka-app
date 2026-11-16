@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.apache.org/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#05070a"
+    android:padding="14dp"
+    android:orientation="vertical"
+    android:gravity="center_vertical">
+
+    <!-- Üst Etiket -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⚡ ANKA OYUNCU KARTI"
+        android:textColor="#00e5ff"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#1a2634"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Rütbe Durumu -->
+    <TextView
+        android:id="@+id/widget_rank_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Rütbe: Yazılım Çırağı"
+        android:textColor="#ffffff"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:paddingBottom="4dp" />
+
+    <!-- Toplam XP Puanı -->
+    <TextView
+        android:id="@+id/widget_xp_count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Toplam XP: Yükleniyor..."
+        android:textColor="#38bdf8"
+        android:textSize="11sp" />
+
+</LinearLayout>
