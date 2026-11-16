@@ -993,6 +993,9 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (loader != null && loader.getVisibility() == View.VISIBLE) {
+            hideLoader(); // Takılan yükleme animasyonunu zorla kapatır
+        }
         if (customView != null) {
             leaveFullscreen();
         } else if (web.canGoBack()) {
