@@ -20,7 +20,11 @@ public class LeaderboardWidgetProvider extends AppWidgetProvider {
         for (int appWidgetId : appWidgetIds) {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_leaderboard);
             
-            // Firebase veritabanı düğümün (Sitenin veriyi kaydettiği yer)
+            // Havalı neon yüklenme ekranı
+            views.setTextViewText(R.id.rank_1, "⚡ 1. [ VERİ ÇEKİLİYOR... ]");
+            views.setTextViewText(R.id.rank_2, "⚡ 2. [ VERİ ÇEKİLİYOR... ]");
+            views.setTextViewText(R.id.rank_3, "⚡ 3. [ VERİ ÇEKİLİYOR... ]");
+
             DatabaseReference ref = FirebaseDatabase.getInstance().getReference("liderlik");
             
             ref.addListenerForSingleValueEvent(new ValueEventListener() {
@@ -30,15 +34,17 @@ public class LeaderboardWidgetProvider extends AppWidgetProvider {
                     
                     for (DataSnapshot child : snapshot.getChildren()) {
                         String isim = child.child("isim").getValue(String.class);
-                        String xp = child.child("xp").getValue(String.class);
+                        
+                        Object xpObj = child.child("xp").getValue();
+                        String xp = xpObj != null ? xpObj.toString() : "0";
 
-                        if (isim != null && xp != null) {
+                        if (isim != null) {
                             if (sira == 1) {
-                                views.setTextViewText(R.id.rank_1, "1. 🥇 " + isim + " - " + xp + " XP");
+                                views.setTextViewText(R.id.rank_1, "👑 1. " + isim.toUpperCase() + " » " + xp + " XP");
                             } else if (sira == 2) {
-                                views.setTextViewText(R.id.rank_2, "2. 🥈 " + isim + " - " + xp + " XP");
+                                views.setTextViewText(R.id.rank_2, "🥈 2. " + isim.toUpperCase() + " » " + xp + " XP");
                             } else if (sira == 3) {
-                                views.setTextViewText(R.id.rank_3, "3. 🥉 " + isim + " - " + xp + " XP");
+                                views.setTextViewText(R.id.rank_3, "🥉 3. " + isim.toUpperCase() + " » " + xp + " XP");
                             }
                         }
                         sira++;
@@ -50,7 +56,9 @@ public class LeaderboardWidgetProvider extends AppWidgetProvider {
 
                 @Override
                 public void onCancelled(@NonNull DatabaseError error) {
-                    views.setTextViewText(R.id.rank_1, "Bağlantı hatası!");
+                    views.setTextViewText(R.id.rank_1, "⚡ SİSTEM OFFLINE");
+                    views.setTextViewText(R.id.rank_2, "⚡ BAĞLANTI KOPTU");
+                    views.setTextViewText(R.id.rank_3, "⚡ YENİDEN DENENİYOR");
                     appWidgetManager.updateAppWidget(appWidgetId, views);
                 }
             });
