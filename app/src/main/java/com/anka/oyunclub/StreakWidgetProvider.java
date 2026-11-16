@@ -20,30 +20,44 @@ public class StreakWidgetProvider extends AppWidgetProvider {
         for (int appWidgetId : appWidgetIds) {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_streak);
 
-            // Firebase'den streak (seri) verisini çektiğimiz düğüm
+            // Firebase Realtime Database referansı
             DatabaseReference ref = FirebaseDatabase.getInstance().getReference("users");
 
             ref.addListenerForSingleValueEvent(new ValueEventListener() {
                 @Override
                 public void onDataChange(@NonNull DataSnapshot snapshot) {
-                    String streakDegeri = snapshot.child("streak").getValue(String.class);
+                    String streakStr = "0";
 
-                    if (streakDegeri != null) {
-                        views.setTextViewText(R.id.widget_streak_text, "🔥 Seri: " + streakDegeri + " Gün");
+                    // Veriyi güvenli bir şekilde çekelim
+                    Object val = snapshot.child("streak").getValue();
+                    if (val != null) {
+                        streakStr = val.toString();
                     } else {
-                        views.setTextViewText(R.id.widget_streak_text, "🔥 Seri: 0 Gün");
+                        for (DataSnapshot child : snapshot.getChildren()) {
+                            if (child.hasChild("streak")) {
+                                Object childVal = child.child("child").getValue(); // veya alt düğüm değeri
+                                if (childVal != null) {
+                                    streakStr = childVal.toString();
+                                    break;
+                                }
+                            }
+                        }
                     }
 
+                    // Havalı ve dinamik metin yapısı
+                    views.setTextViewText(R.id.widget_streak_text, "🔥 " + streakStr + " GÜN 🔥");
                     appWidgetManager.updateAppWidget(appWidgetId, views);
                 }
 
                 @Override
                 public void onCancelled(@NonNull DatabaseError error) {
-                    views.setTextViewText(R.id.widget_streak_text, "🔥 Seri: Hata!");
+                    views.setTextViewText(R.id.widget_streak_text, "⚡ ANKA OFFLINE");
                     appWidgetManager.updateAppWidget(appWidgetId, views);
                 }
             });
 
+            // İlk yüklenme anı için havalı geçici yazı
+            views.setTextViewText(R.id.widget_streak_text, "⚡ YÜKLENİYOR...");
             appWidgetManager.updateAppWidget(appWidgetId, views);
         }
     }
