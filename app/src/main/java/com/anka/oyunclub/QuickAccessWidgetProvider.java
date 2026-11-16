@@ -23,23 +23,28 @@ public class QuickAccessWidgetProvider extends AppWidgetProvider {
         for (int appWidgetId : appWidgetIds) {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_quick_access);
 
-            // 1. Firebase'den anlık duyuru veya genel sohbet durumunu çekiyoruz
+            // Başlangıç için havalı neon yüklenme metni
+            views.setTextViewText(R.id.widget_status_text, "⚡ ANKA BAĞLANTI KURULUYOR...");
+
+            // 1. Firebase'den anlık duyuru veya genel sohbet durumunu güvenle çekiyoruz
             DatabaseReference ref = FirebaseDatabase.getInstance().getReference("durum");
             ref.addListenerForSingleValueEvent(new ValueEventListener() {
                 @Override
                 public void onDataChange(@NonNull DataSnapshot snapshot) {
-                    String anlikDurum = snapshot.getValue(String.class);
-                    if (anlikDurum != null) {
-                        views.setTextViewText(R.id.widget_status_text, anlikDurum);
+                    Object val = snapshot.getValue();
+                    String anlikDurum = val != null ? val.toString() : null;
+
+                    if (anlikDurum != null && !anlikDurum.isEmpty()) {
+                        views.setTextViewText(R.id.widget_status_text, "🚀 " + anlikDurum);
                     } else {
-                        views.setTextViewText(R.id.widget_status_text, "Anka APK Aktif 🚀");
+                        views.setTextViewText(R.id.widget_status_text, "⚡ ANKA APK » AKTİF & ONLINE");
                     }
                     appWidgetManager.updateAppWidget(appWidgetId, views);
                 }
 
                 @Override
                 public void onCancelled(@NonNull DatabaseError error) {
-                    views.setTextViewText(R.id.widget_status_text, "Bağlantı Bekleniyor...");
+                    views.setTextViewText(R.id.widget_status_text, "⚡ SİSTEM OFFLINE - TIKLA");
                     appWidgetManager.updateAppWidget(appWidgetId, views);
                 }
             });
