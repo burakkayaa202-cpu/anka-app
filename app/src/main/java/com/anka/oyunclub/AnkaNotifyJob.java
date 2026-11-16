@@ -1,4 +1,4 @@
-Package com.anka.oyunclub;
+package com.anka.oyunclub;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -33,7 +33,7 @@ public class AnkaNotifyJob extends JobService {
             try { 
                 check(); 
             } catch (Throwable ignored) { 
-                // Thread dışına çıkabilecek tüm hatalar (Error ve Exception) yakalandı[span_2](start_span)[span_2](end_span)
+                // Thread dışına çıkabilecek tüm hatalar (Error ve Exception) yakalandı[span_0](start_span)[span_0](end_span)
             }
             jobFinished(params, false);
         }).start();
@@ -160,7 +160,7 @@ public class AnkaNotifyJob extends JobService {
             if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH);
             nm.notify(id, b.build());
         } catch (Throwable ignored) {
-            // Bildirim gösterirken oluşabilecek simge/sistem hatalarını yut ve çökmesini engelle[span_3](start_span)[span_3](end_span)
+            // Bildirim gösterirken oluşabilecek simge/sistem hatalarını yut ve çökmesini engelle[span_1](start_span)[span_1](end_span)
         }
     }
 }
