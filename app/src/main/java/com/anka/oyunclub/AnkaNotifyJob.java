@@ -1,4 +1,4 @@
-package com.anka.oyunclub;
+Package com.anka.oyunclub;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -30,7 +30,11 @@ public class AnkaNotifyJob extends JobService {
     @Override
     public boolean onStartJob(final JobParameters params) {
         new Thread(() -> {
-            try { check(); } catch (Exception ignored) { }
+            try { 
+                check(); 
+            } catch (Throwable ignored) { 
+                // Thread dışına çıkabilecek tüm hatalar (Error ve Exception) yakalandı[span_2](start_span)[span_2](end_span)
+            }
             jobFinished(params, false);
         }).start();
         return true;
@@ -127,32 +131,36 @@ public class AnkaNotifyJob extends JobService {
     }
 
     static void show(Context ctx, int id, String title, String text) {
-        NotificationManager nm =
-            (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm == null) return;
-        if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel ch = new NotificationChannel(
-                CHANNEL, "Anka Bildirimleri", NotificationManager.IMPORTANCE_HIGH);
-            nm.createNotificationChannel(ch);
-        }
-        Intent open = new Intent(ctx, MainActivity.class);
-        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-            | Intent.FLAG_ACTIVITY_CLEAR_TOP
-            | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT
-            | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
-        PendingIntent pi = PendingIntent.getActivity(ctx, 0, open, flags);
+        try {
+            NotificationManager nm =
+                (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            if (Build.VERSION.SDK_INT >= 26) {
+                NotificationChannel ch = new NotificationChannel(
+                    CHANNEL, "Anka Bildirimleri", NotificationManager.IMPORTANCE_HIGH);
+                nm.createNotificationChannel(ch);
+            }
+            Intent open = new Intent(ctx, MainActivity.class);
+            open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT
+                | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+            PendingIntent pi = PendingIntent.getActivity(ctx, 0, open, flags);
 
-        Notification.Builder b = Build.VERSION.SDK_INT >= 26
-            ? new Notification.Builder(ctx, CHANNEL)
-            : new Notification.Builder(ctx);
-        b.setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(new Notification.BigTextStyle().bigText(text))
-            .setContentIntent(pi)
-            .setAutoCancel(true);
-        if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH);
-        nm.notify(id, b.build());
+            Notification.Builder b = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(ctx, CHANNEL)
+                : new Notification.Builder(ctx);
+            b.setSmallIcon(R.drawable.ic_launcher)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(new Notification.BigTextStyle().bigText(text))
+                .setContentIntent(pi)
+                .setAutoCancel(true);
+            if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH);
+            nm.notify(id, b.build());
+        } catch (Throwable ignored) {
+            // Bildirim gösterirken oluşabilecek simge/sistem hatalarını yut ve çökmesini engelle[span_3](start_span)[span_3](end_span)
+        }
     }
 }
