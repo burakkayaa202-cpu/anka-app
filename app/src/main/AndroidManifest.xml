@@ -12,7 +12,7 @@
     <application
         android:label="Anka APK"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
+android:roundIcon="@mipmap/ic_launcher_round"
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
@@ -31,58 +31,6 @@
             android:name=".AnkaNotifyJob"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
-
-        <!-- ========================================== -->
-        <!-- ANKA WIDGET RECEIVER KAYITLARI              -->
-        <!-- ========================================== -->
-
-        <!-- 1. Streak (Günlük Seri) Widget -->
-        <receiver
-            android:name=".StreakWidgetProvider"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_streak_info" />
-        </receiver>
-
-        <!-- 2. Leaderboard (Liderlik) Widget -->
-        <receiver
-            android:name=".LeaderboardWidgetProvider"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_leaderboard_info" />
-        </receiver>
-
-        <!-- 3. XP & Rütbe Kartı Widget -->
-        <receiver
-            android:name=".XpWidgetProvider"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_xp_info" />
-        </receiver>
-
-        <!-- 4. Hızlı Erişim & Durum Widget -->
-        <receiver
-            android:name=".QuickAccessWidgetProvider"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_quick_access_info" />
-        </receiver>
 
     </application>
 </manifest>
