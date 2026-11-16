@@ -12,6 +12,9 @@ android {
         targetSdk 34
         versionCode 2
         versionName "1.3"
+        
+        // 🚀 İŞTE EKSİK OLAN KRİTİK SATIR: Multi-dex desteğini açıyoruz!
+        multiDexEnabled true
     }
 
     signingConfigs {
@@ -25,7 +28,6 @@ android {
 
     buildTypes {
         release {
-            // Eğer release için de bu imzayı kullanacaksanız:
             signingConfig signingConfigs.debug
         }
         debug {
@@ -34,7 +36,13 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        // Eski Android'lerle daha barışık olması için Java 8 veya 11 en güvenlisidir
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
+}
+
+dependencies {
+    // 🚀 Multi-dex kütüphanesini projeye ekliyoruz ki eski cihazlar sınıfları okuyabilsin
+    implementation 'androidx.multidex:multidex:2.0.1'
 }
