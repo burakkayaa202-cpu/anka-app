@@ -1,11 +1,7 @@
-plugins {
-    id 'com.android.application'
-}
-
+Plugins { id 'com.android.application' }
 android {
     namespace 'com.anka.oyunclub'
     compileSdk 34
-
     defaultConfig {
         applicationId "com.anka.oyunclub"
         minSdk 21
@@ -13,7 +9,6 @@ android {
         versionCode 2
         versionName "1.1"
     }
-
     signingConfigs {
         debug {
             storeFile file('anka.jks')
@@ -22,14 +17,8 @@ android {
             keyPassword 'ankapass123'
         }
     }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-}
-
-dependencies {
-    implementation 'com.google.firebase:firebase-database:20.3.0'
-    implementation 'androidx.annotation:annotation:1.7.0'
 }
