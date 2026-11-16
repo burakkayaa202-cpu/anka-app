@@ -1,7 +1,11 @@
-Plugins { id 'com.android.application' }
+plugins { 
+    id 'com.android.application' 
+}
+
 android {
     namespace 'com.anka.oyunclub'
     compileSdk 34
+
     defaultConfig {
         applicationId "com.anka.oyunclub"
         minSdk 21
@@ -9,6 +13,7 @@ android {
         versionCode 2
         versionName "1.1"
     }
+
     signingConfigs {
         debug {
             storeFile file('anka.jks')
@@ -17,6 +22,17 @@ android {
             keyPassword 'ankapass123'
         }
     }
+
+    buildTypes {
+        release {
+            // Eğer release için de bu imzayı kullanacaksanız:
+            signingConfig signingConfigs.debug
+        }
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
