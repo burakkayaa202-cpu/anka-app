@@ -31,6 +31,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -63,6 +64,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -121,6 +123,67 @@ public class MainActivity extends Activity {
         return isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed());
     }
 
+    // Büyük logo resmi bazı cihazlarda "trying to draw too large bitmap" hatasıyla uygulamayı çökertir.
+    // Bu yüzden logoyu küçülterek (max ~256px) ve yoğunluk büyütmesi olmadan yükler.
+    private void setLogo(ImageView iv) {
+        try {
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher, o);
+            if (o.outWidth > 0 && o.outHeight > 0) {
+                int sample = 1;
+                int max = Math.max(o.outWidth, o.outHeight);
+                while (max / sample > 256) sample *= 2;
+                BitmapFactory.Options o2 = new BitmapFactory.Options();
+                o2.inSampleSize = sample;
+                o2.inScaled = false;
+                Bitmap bm = BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher, o2);
+                if (bm != null) {
+                    iv.setImageBitmap(bm);
+                    return;
+                }
+            }
+        } catch (Throwable ignored) { }
+        try { iv.setImageResource(R.drawable.ic_launcher); } catch (Throwable ignored) { }
+    }
+
+    // Önceki çökmenin raporunu, normal ekranı çizmeden ÖNCE tam ekran gösterir
+    private void showCrashScreen(String report) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setBackgroundColor(Color.parseColor("#0B1120"));
+        box.setPadding(dp(16), dp(36), dp(16), dp(16));
+
+        TextView title = new TextView(this);
+        title.setText("ÇÖKME RAPORU\n(bu ekranın görüntüsünü gönder)");
+        title.setTextColor(Color.parseColor("#00E5FF"));
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        title.setPadding(0, 0, 0, dp(12));
+        box.addView(title);
+
+        ScrollView sv = new ScrollView(this);
+        TextView tv = new TextView(this);
+        tv.setText(report.substring(0, Math.min(report.length(), 2500)));
+        tv.setTextColor(Color.parseColor("#E6FAFF"));
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        tv.setTextIsSelectable(true);
+        sv.addView(tv);
+        box.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        TextView btn = ankaBtn("UYGULAMAYI AÇ", true);
+        btn.setOnClickListener(v -> {
+            finish();
+            startActivity(new Intent(MainActivity.this, MainActivity.class));
+        });
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, -2);
+        bl.topMargin = dp(12);
+        box.addView(btn, bl);
+
+        setContentView(box);
+    }
+
     private String loadFx() {
         if (fxJs != null) return fxJs;
         try {
@@ -169,7 +232,7 @@ public class MainActivity extends Activity {
 
         // Ortada nabız gibi atan Anka logosu
         loaderLogo = new ImageView(this);
-        loaderLogo.setImageResource(R.drawable.ic_launcher);
+        setLogo(loaderLogo);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(56), dp(56), Gravity.CENTER);
         stack.addView(loaderLogo, lp);
 
@@ -790,6 +853,18 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+
+        // Önceki çökme kaydı varsa raporu göster (çökme ilk çizimde olsa bile görünsün)
+        try {
+            SharedPreferences cp0 = getSharedPreferences("crash", MODE_PRIVATE);
+            final String crash = cp0.getString("last", null);
+            if (crash != null) {
+                cp0.edit().remove("last").commit();
+                showCrashScreen(crash);
+                return;
+            }
+        } catch (Throwable ignored) { }
+
         int dark = Color.parseColor("#0B1120");
         getWindow().setStatusBarColor(dark);
         getWindow().setNavigationBarColor(dark);
@@ -813,7 +888,7 @@ public class MainActivity extends Activity {
         splash = new FrameLayout(this);
         splash.setBackgroundColor(dark);
         ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.ic_launcher);
+        setLogo(logo);
         splash.addView(logo, new FrameLayout.LayoutParams(dp(120), dp(120), Gravity.CENTER));
         root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
