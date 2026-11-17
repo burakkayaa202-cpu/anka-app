@@ -5,7 +5,8 @@
 
   // ---- AYARLAR ----
   var MENU_WORDS = ['FOTO', 'VİDEO', 'VIDEO', 'DOSYA']; // + menüsündeki yazılar
-  var SPIN_DELAY = 400; // ms: yükleme bu kadar sürerse halka çıksın
+  var SPIN_DELAY = 400;   // ms: yükleme bu kadar sürerse halka çıksın
+  var SCAN_DELAY = 1000;  // ms: DOM değişince menü taraması bu kadar sonra çalışsın
 
   // ---- 1) Yakınlaştırmayı kapat, ölçüyü sabitle ----
   try {
@@ -44,7 +45,10 @@
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
       if (el.classList.contains('anka-fx-menuitem')) continue;
-      var txt = (el.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      // Çok uzun metinli öğeleri baştan ele (hızlandırır)
+      var raw = el.textContent || '';
+      if (raw.length > 40) continue;
+      var txt = raw.replace(/\s+/g, ' ').trim().toUpperCase();
       var clean = txt.replace(/[^A-ZÇĞİÖŞÜ]/g, '');
       if (MENU_WORDS.indexOf(clean) !== -1 && txt.length < 14 && el.children.length <= 3) {
         items.push(el);
@@ -76,16 +80,16 @@
   var timer = null;
   try {
     var mo = window.MutationObserver || window.WebKitMutationObserver;
-    if (mo) {
+    if (mo && document.body) {
       new mo(function () {
         clearTimeout(timer);
-        timer = setTimeout(run, 250);
+        timer = setTimeout(run, SCAN_DELAY);
       }).observe(document.body, { childList: true, subtree: true });
     }
   } catch (e) {}
 
   // ---- 4) Yavaş yüklenince dönen halka (Android 9 uyumlu eski pozisyon kodları) ----
-  var pending = 0, spinTimer = null;
+  var pending = 0, spinTimer = null, unloadTimer = null;
 
   var sc = document.createElement('style');
   sc.textContent =
@@ -147,9 +151,18 @@
     };
   }
 
-  // Sayfa değişirken göster
+  // Sayfa değişirken göster (indirme / dış link olursa takılı kalmasın)
   window.addEventListener('beforeunload', function () {
-    try { sp.classList.add('on'); } catch(e){}
+    try {
+      sp.classList.add('on');
+      clearTimeout(unloadTimer);
+      unloadTimer = setTimeout(function () {
+        if (pending === 0) sp.classList.remove('on');
+      }, 4000);
+    } catch (e) {}
+  });
+  window.addEventListener('pageshow', function () {
+    try { if (pending === 0) sp.classList.remove('on'); } catch (e) {}
   });
 
   // ---- 5) İndirme dosya adını yakala (blob indirmeleri için) ----
