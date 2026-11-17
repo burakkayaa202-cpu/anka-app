@@ -100,7 +100,7 @@ public class MainActivity extends Activity {
     private final Map<Long, String[]> downloads = new HashMap<>();
     private String[] pendingDl = null;
 
-    private static final String APP_VERSION = "1.3";
+    private static final String APP_VERSION = "1.3.2";
     private static final String REPO = "burakkayaa202-cpu/anka-app";
     private long updateId = -1;
     private Uri pendingInstall = null;
