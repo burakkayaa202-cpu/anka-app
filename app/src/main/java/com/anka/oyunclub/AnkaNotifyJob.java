@@ -31,10 +31,12 @@ public class AnkaNotifyJob extends JobService {
     @Override
     public boolean onStartJob(final JobParameters params) {
         new Thread(() -> {
-            // İkisi ayrı: biri hata verirse diğeri yine çalışsın
-            try { check(); } catch (Throwable ignored) { }
-            try { checkUpdateNotification(); } catch (Throwable ignored) { }
-            try { jobFinished(params, false); } catch (Throwable ignored) { }
+            try {
+                try { check(); } catch (Throwable ignored) { }
+                try { checkUpdateNotification(); } catch (Throwable ignored) { }
+            } finally {
+                try { jobFinished(params, false); } catch (Throwable ignored) { }
+            }
         }).start();
         return true;
     }
@@ -44,60 +46,66 @@ public class AnkaNotifyJob extends JobService {
         return true;
     }
 
-    // Sürümü build.gradle'daki versionName'den okur, elle eşitlemeye gerek kalmaz
+    // Sürümü güvenli okuma (Android 9 uyumlu)
     private String appVersion() {
         try {
-            String v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-            return v == null ? "0" : v;
-        } catch (Throwable t) {
-            return "0";
-        }
+            if (getPackageManager() != null) {
+                String v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                return v == null ? "0" : v;
+            }
+        } catch (Throwable ignored) { }
+        return "0";
     }
 
-    private JSONObject get(String url) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(10000);
-        c.setReadTimeout(10000);
-        if (c.getResponseCode() != 200) return null;
-        InputStream in = c.getInputStream();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buf = new byte[4096];
-        int n;
-        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-        in.close();
-        String s = out.toString("UTF-8").trim();
-        if (s.isEmpty() || s.equals("null")) return null;
-        return new JSONObject(s);
+    private JSONObject get(String url) {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(10000);
+            c.setReadTimeout(10000);
+            if (c.getResponseCode() != 200) return null;
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            in.close();
+            String s = out.toString("UTF-8").trim();
+            if (s.isEmpty() || s.equals("null")) return null;
+            return new JSONObject(s);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     // ---------- YENİ SÜRÜM BİLDİRİMİ ----------
-    private void checkUpdateNotification() throws Exception {
-        HttpURLConnection c = (HttpURLConnection)
-            new URL("https://api.github.com/repos/" + REPO + "/releases/latest").openConnection();
-        c.setConnectTimeout(8000);
-        c.setReadTimeout(8000);
-        c.setRequestProperty("Accept", "application/vnd.github+json");
-        if (c.getResponseCode() != 200) return;
-        InputStream in = c.getInputStream();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buf = new byte[4096];
-        int n;
-        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-        in.close();
-        JSONObject j = new JSONObject(out.toString("UTF-8"));
-        String tag = j.optString("tag_name", "");
+    private void checkUpdateNotification() {
+        try {
+            HttpURLConnection c = (HttpURLConnection)
+                new URL("https://api.github.com/repos/" + REPO + "/releases/latest").openConnection();
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(8000);
+            c.setRequestProperty("Accept", "application/vnd.github+json");
+            if (c.getResponseCode() != 200) return;
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            in.close();
+            JSONObject j = new JSONObject(out.toString("UTF-8"));
+            String tag = j.optString("tag_name", "");
 
-        if (!tag.isEmpty() && isNewer(tag, appVersion())) {
-            SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
-            String notifiedVer = sp.getString("last_notified_version", "");
+            if (!tag.isEmpty() && isNewer(tag, appVersion())) {
+                SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
+                String notifiedVer = sp.getString("last_notified_version", "");
 
-            // Aynı sürüm için tekrar tekrar bildirim atmasın
-            if (!notifiedVer.equals(tag)) {
-                sp.edit().putString("last_notified_version", tag).apply();
-                show(this, 9999, "🚀 Yeni Sürüm Çıktı: " + tag,
-                    "Anka APK'nın yeni sürümü hazır, hemen indir!");
+                if (!notifiedVer.equals(tag)) {
+                    sp.edit().putString("last_notified_version", tag).apply();
+                    show(this, 9999, "🚀 Yeni Sürüm Çıktı: " + tag,
+                        "Anka APK'nın yeni sürümü hazır, hemen indir!");
+                }
             }
-        }
+        } catch (Throwable ignored) { }
     }
 
     private boolean isNewer(String remote, String local) {
@@ -114,73 +122,73 @@ public class AnkaNotifyJob extends JobService {
         return false;
     }
 
-    private void check() throws Exception {
-        SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
-        String user = sp.getString("user", "");
-        if (user.isEmpty()) return;
+    private void check() {
+        try {
+            SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
+            String user = sp.getString("user", "");
+            if (user.isEmpty()) return;
 
-        String base = DB + "/notifications/" + Uri.encode(user) + ".json?orderBy=%22%24key%22";
-        String prefKey = "last_" + user;
-        String last = sp.getString(prefKey, "");
+            String base = DB + "/notifications/" + Uri.encode(user) + ".json?orderBy=%22%24key%22";
+            String prefKey = "last_" + user;
+            String last = sp.getString(prefKey, "");
 
-        // İlk çalışma: eski bildirimleri gösterme, sadece en yeni anahtarı kaydet
-        if (last.isEmpty()) {
-            JSONObject first = get(base + "&limitToLast=1");
-            String newest = "-";
-            if (first != null) {
-                Iterator<String> it = first.keys();
-                if (it.hasNext()) newest = it.next();
+            if (last.isEmpty()) {
+                JSONObject first = get(base + "&limitToLast=1");
+                String newest = "-";
+                if (first != null) {
+                    Iterator<String> it = first.keys();
+                    if (it.hasNext()) newest = it.next();
+                }
+                sp.edit().putString(prefKey, newest).apply();
+                return;
             }
-            sp.edit().putString(prefKey, newest).apply();
-            return;
-        }
 
-        JSONObject res = get(base + "&startAt=%22" + Uri.encode(last) + "%22");
-        if (res == null) return;
+            JSONObject res = get(base + "&startAt=%22" + Uri.encode(last) + "%22");
+            if (res == null) return;
 
-        List<String> keys = new ArrayList<>();
-        Iterator<String> it = res.keys();
-        while (it.hasNext()) {
-            String k = it.next();
-            if (k.compareTo(last) > 0) keys.add(k);
-        }
-        if (keys.isEmpty()) return;
-        Collections.sort(keys);
-        sp.edit().putString(prefKey, keys.get(keys.size() - 1)).apply();
-
-        // Uygulama açıkken site zaten kendi bildirimini gösteriyor
-        if (MainActivity.foreground) return;
-
-        if (keys.size() > 5) {
-            show(this, 1, "🔔 Anka", keys.size() + " yeni bildirimin var");
-            return;
-        }
-        for (String k : keys) {
-            JSONObject o = res.optJSONObject(k);
-            if (o == null) continue;
-            String type = o.optString("type", "");
-            String from = o.optString("from", "Biri");
-            String text = o.optString("text", "");
-            String title;
-            String body;
-            if (type.equals("msg")) {
-                title = "💬 " + from;
-                body = text;
-            } else if (type.equals("friend")) {
-                title = "👥 Arkadaşlık isteği";
-                body = from + " sana arkadaşlık isteği gönderdi";
-            } else if (type.equals("accepted")) {
-                title = "✅ Arkadaş oldunuz";
-                body = from + " isteğini kabul etti";
-            } else if (type.equals("reply")) {
-                title = "↩️ " + from;
-                body = "Yorumunu yanıtladı: " + text;
-            } else {
-                title = "🔔 Anka";
-                body = text;
+            List<String> keys = new ArrayList<>();
+            Iterator<String> it = res.keys();
+            while (it.hasNext()) {
+                String k = it.next();
+                if (k != null && k.compareTo(last) > 0) keys.add(k);
             }
-            show(this, k.hashCode(), title, body);
-        }
+            if (keys.isEmpty()) return;
+            Collections.sort(keys);
+            sp.edit().putString(prefKey, keys.get(keys.size() - 1)).apply();
+
+            if (MainActivity.foreground) return;
+
+            if (keys.size() > 5) {
+                show(this, 1, "🔔 Anka", keys.size() + " yeni bildirimin var");
+                return;
+            }
+            for (String k : keys) {
+                JSONObject o = res.optJSONObject(k);
+                if (o == null) continue;
+                String type = o.optString("type", "");
+                String from = o.optString("from", "Biri");
+                String text = o.optString("text", "");
+                String title;
+                String body;
+                if (type.equals("msg")) {
+                    title = "💬 " + from;
+                    body = text;
+                } else if (type.equals("friend")) {
+                    title = "👥 Arkadaşlık isteği";
+                    body = from + " sana arkadaşlık isteği gönderdi";
+                } else if (type.equals("accepted")) {
+                    title = "✅ Arkadaş oldunuz";
+                    body = from + " isteğini kabul etti";
+                } else if (type.equals("reply")) {
+                    title = "↩️ " + from;
+                    body = "Yorumunu yanıtladı: " + text;
+                } else {
+                    title = "🔔 Anka";
+                    body = text;
+                }
+                show(this, k.hashCode(), title, body);
+            }
+        } catch (Throwable ignored) { }
     }
 
     static void show(Context ctx, int id, String title, String text) {
@@ -204,7 +212,7 @@ public class AnkaNotifyJob extends JobService {
             Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(ctx, CHANNEL)
                 : new Notification.Builder(ctx);
-            // ÖNEMLİ: büyük ic_launcher yerine küçük, tek renkli bildirim ikonu
+            
             b.setSmallIcon(R.drawable.ic_stat_anka)
                 .setContentTitle(title)
                 .setContentText(text)
@@ -213,8 +221,6 @@ public class AnkaNotifyJob extends JobService {
                 .setAutoCancel(true);
             if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH);
             nm.notify(id, b.build());
-        } catch (Throwable ignored) {
-            // Bildirim gösterirken oluşabilecek hataları yut
-        }
+        } catch (Throwable ignored) { }
     }
 }
