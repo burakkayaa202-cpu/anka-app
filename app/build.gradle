@@ -10,7 +10,7 @@ android {
         applicationId "com.anka.oyunclub"
         minSdk 21
         targetSdk 34
-        versionCode 3
+        versionCode 4
         versionName "1.3.2"
         
         // 🚀 İŞTE EKSİK OLAN KRİTİK SATIR: Multi-dex desteğini açıyoruz!
