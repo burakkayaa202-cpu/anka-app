@@ -89,7 +89,6 @@ public class MainActivity extends Activity {
     private long lastBack = 0;
     private String fxJs = null;
 
-    // Anka yükleme animasyonu
     private LinearLayout loader;
     private View ring;
     private ImageView loaderLogo;
@@ -98,20 +97,18 @@ public class MainActivity extends Activity {
     private boolean pageLoading = false;
     private final Runnable showLoaderRun = () -> { if (pageLoading) showLoader(); };
 
-    // İndirme
     private final Map<Long, String[]> downloads = new HashMap<>();
-    private String[] pendingDl = null; // url, ua, cd, mime, name
+    private String[] pendingDl = null;
 
-    // Güncelleme: her yeni sürümde APP_VERSION'ı yükselt (build.gradle versionName ile aynı olmalı)
     private static final String APP_VERSION = "1.3";
     private static final String REPO = "burakkayaa202-cpu/anka-app";
     private long updateId = -1;
     private Uri pendingInstall = null;
     private boolean updateChecked = false;
 
-    // Bildirimler
     static volatile boolean foreground = false;
     private boolean notifAsked = false;
+    private boolean receiverRegistered = false; // Alıcı çakışmasını önlemek için
 
     private interface Done { void run(boolean ok, String text); }
 
@@ -123,8 +120,6 @@ public class MainActivity extends Activity {
         return isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed());
     }
 
-    // Büyük logo resmi bazı cihazlarda "trying to draw too large bitmap" hatasıyla uygulamayı çökertir.
-    // Bu yüzden logoyu küçülterek (max ~256px) ve yoğunluk büyütmesi olmadan yükler.
     private void setLogo(ImageView iv) {
         try {
             BitmapFactory.Options o = new BitmapFactory.Options();
@@ -147,7 +142,6 @@ public class MainActivity extends Activity {
         try { iv.setImageResource(R.drawable.ic_launcher); } catch (Throwable ignored) { }
     }
 
-    // Önceki çökmenin raporunu, normal ekranı çizmeden ÖNCE tam ekran gösterir
     private void showCrashScreen(String report) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -207,8 +201,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    // ---------- ANKA YÜKLEME HALKASI ----------
-
     private void buildLoader() {
         loader = new LinearLayout(this);
         loader.setOrientation(LinearLayout.VERTICAL);
@@ -218,7 +210,6 @@ public class MainActivity extends Activity {
 
         FrameLayout stack = new FrameLayout(this);
 
-        // Dönen neon halka
         ring = new View(this);
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.RING);
@@ -230,7 +221,6 @@ public class MainActivity extends Activity {
         ring.setBackground(g);
         stack.addView(ring, new FrameLayout.LayoutParams(dp(100), dp(100)));
 
-        // Ortada nabız gibi atan Anka logosu
         loaderLogo = new ImageView(this);
         setLogo(loaderLogo);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(56), dp(56), Gravity.CENTER);
@@ -264,32 +254,32 @@ public class MainActivity extends Activity {
 
     private void scheduleLoader() {
         pageLoading = true;
-        web.removeCallbacks(showLoaderRun);
-        web.postDelayed(showLoaderRun, 500); // 0.5 sn'den uzun sürerse göster
+        if (web != null) {
+            web.removeCallbacks(showLoaderRun);
+            web.postDelayed(showLoaderRun, 500);
+        }
     }
 
     private void showLoader() {
-        if (loader.getVisibility() == View.VISIBLE) return;
+        if (dead() || loader == null || loader.getVisibility() == View.VISIBLE) return;
         loader.setAlpha(0f);
         loader.setVisibility(View.VISIBLE);
         loader.animate().alpha(1f).setDuration(200).start();
-        ringAnim.start();
-        pulseAnim.start();
+        if (ringAnim != null) ringAnim.start();
+        if (pulseAnim != null) pulseAnim.start();
     }
 
     private void hideLoader() {
         pageLoading = false;
-        web.removeCallbacks(showLoaderRun);
-        if (loader.getVisibility() == View.VISIBLE) {
+        if (web != null) web.removeCallbacks(showLoaderRun);
+        if (loader != null && loader.getVisibility() == View.VISIBLE) {
             loader.animate().alpha(0f).setDuration(200).withEndAction(() -> {
-                loader.setVisibility(View.GONE);
-                ringAnim.cancel();
-                pulseAnim.cancel();
+                if (loader != null) loader.setVisibility(View.GONE);
+                if (ringAnim != null) ringAnim.cancel();
+                if (pulseAnim != null) pulseAnim.cancel();
             }).start();
         }
     }
-
-    // ---------- ANKA NEON DİYALOG YARDIMCILARI ----------
 
     private GradientDrawable shape(int fill, int stroke, int radiusDp) {
         GradientDrawable g = new GradientDrawable();
@@ -320,7 +310,6 @@ public class MainActivity extends Activity {
         return t;
     }
 
-    // Yorumun içindeki HTML kodlarını temizler, düz metin bırakır
     @SuppressWarnings("deprecation")
     private String cleanText(String s) {
         if (s == null) return "";
@@ -338,7 +327,6 @@ public class MainActivity extends Activity {
 
     private void ankaDialog(String title, String msg, String input,
                             String okText, String cancelText, Done done) {
-        // Activity kapanıyorsa diyalog açma (BadTokenException olmasın)
         if (dead()) {
             done.run(false, null);
             return;
@@ -416,14 +404,16 @@ public class MainActivity extends Activity {
 
         try {
             d.setContentView(box);
-            d.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            d.getWindow().setDimAmount(0.75f);
-            d.getWindow().setSoftInputMode(
-                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-                | WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-            d.show();
-            int w = Math.min((int) (getResources().getDisplayMetrics().widthPixels * 0.9f), dp(560));
-            d.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (d.getWindow() != null) {
+                d.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                d.getWindow().setDimAmount(0.75f);
+                d.getWindow().setSoftInputMode(
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+                d.show();
+                int w = Math.min((int) (getResources().getDisplayMetrics().widthPixels * 0.9f), dp(560));
+                d.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
+            }
         } catch (Throwable e) {
             if (!finished[0]) {
                 finished[0] = true;
@@ -431,8 +421,6 @@ public class MainActivity extends Activity {
             }
         }
     }
-
-    // ---------- ANKA İNDİRME YÖNETİCİSİ ----------
 
     private void askDownload(String url, String ua, String cd, String mime) {
         if (url.startsWith("blob:") || url.startsWith("data:")) {
@@ -445,7 +433,6 @@ public class MainActivity extends Activity {
     }
 
     private void startDownload(String url, String ua, String cd, String mime, String name) {
-        // Android 9 ve altında depolama izni lazım
         if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT < 29
             && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                != PackageManager.PERMISSION_GRANTED) {
@@ -530,10 +517,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    // ----------------------------------------------------
-
-    // ---------- BLOB / DATA İNDİRMELERİ (site kendi ürettiği dosyalar) ----------
-
     private void handleBlob(String url, String mime) {
         if (url.startsWith("data:")) {
             try {
@@ -556,7 +539,7 @@ public class MainActivity extends Activity {
             + "AnkaBridge.saveBase64(d.substring(d.indexOf(',')+1),x.response.type||'application/octet-stream',n);};"
             + "r.readAsDataURL(x.response);};x.onerror=function(){AnkaBridge.fail();};x.send();}"
             + "catch(e){AnkaBridge.fail();}})();";
-        web.evaluateJavascript(js, null);
+        if (web != null) web.evaluateJavascript(js, null);
     }
 
     private class AnkaBridge {
@@ -659,8 +642,6 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Bağlantı açılamadı", Toast.LENGTH_SHORT).show();
         }
     }
-
-    // ---------- ANKA OTOMATİK GÜNCELLEME (GitHub Releases) ----------
 
     private void checkUpdate() {
         if (updateChecked) return;
@@ -790,8 +771,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    // ---------- BİLDİRİMLER ----------
-
     private void askNotifPermission() {
         if (notifAsked) return;
         notifAsked = true;
@@ -817,6 +796,7 @@ public class MainActivity extends Activity {
     }
 
     private void showOffline() {
+        if (web == null) return;
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
         html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
         html += "<p style='opacity:.8;'>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>";
@@ -829,13 +809,12 @@ public class MainActivity extends Activity {
         if (customView == null) return;
         root.removeView(customView);
         customView = null;
-        web.setVisibility(View.VISIBLE);
+        if (web != null) web.setVisibility(View.VISIBLE);
         getWindow().getDecorView().setSystemUiVisibility(0);
         if (customCallback != null) customCallback.onCustomViewHidden();
         customCallback = null;
     }
 
-    // WebView yoksa / bozuksa çökmek yerine mesaj göster
     private void showNoWebView(Throwable t) {
         TextView tv = new TextView(this);
         tv.setBackgroundColor(Color.parseColor("#0B1120"));
@@ -854,7 +833,6 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
 
-        // Önceki çökme kaydı varsa raporu göster (çökme ilk çizimde olsa bile görünsün)
         try {
             SharedPreferences cp0 = getSharedPreferences("crash", MODE_PRIVATE);
             final String crash = cp0.getString("last", null);
@@ -901,7 +879,6 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
-        // Chrome'daki gibi görünmesi için
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(false);
         s.setTextZoom(100);
@@ -917,14 +894,17 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new AnkaBridge(), "AnkaBridge");
         scheduleNotifyJob();
 
-        // İndirme bitince haber veren alıcı
+        // Android 9 için güvenli BroadcastReceiver kaydı
         try {
             IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-            if (Build.VERSION.SDK_INT >= 33) registerReceiver(dlReceiver, f, 2); // RECEIVER_EXPORTED
-            else registerReceiver(dlReceiver, f);
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(dlReceiver, f, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(dlReceiver, f);
+            }
+            receiverRegistered = true;
         } catch (Throwable ignored) { }
 
-        // Anka İndirme Yöneticisi
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) ->
             askDownload(url, userAgent, contentDisposition, mimetype));
 
@@ -935,7 +915,6 @@ public class MainActivity extends Activity {
                 String scheme = u.getScheme();
                 String host = u.getHost();
                 boolean isWeb = "http".equals(scheme) || "https".equals(scheme);
-                // Sadece kendi sitemiz WebView'de açılır (başka blogspot siteleri AnkaBridge'e erişemesin)
                 if (isWeb && SITE_HOST.equals(host)) return false;
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW, u);
@@ -955,7 +934,6 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String url) {
-                // Anka JS'i sadece kendi sitemizde çalıştır
                 Uri pu = url == null ? null : Uri.parse(url);
                 if (pu != null && SITE_HOST.equals(pu.getHost())) {
                     String js = loadFx();
@@ -1039,7 +1017,7 @@ public class MainActivity extends Activity {
                 customView = view;
                 customCallback = cb;
                 root.addView(view, new FrameLayout.LayoutParams(-1, -1));
-                web.setVisibility(View.GONE);
+                if (web != null) web.setVisibility(View.GONE);
                 getWindow().getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -1052,21 +1030,8 @@ public class MainActivity extends Activity {
             }
         });
 
-        // saveState/restoreState kaldırıldı: bazı cihazlarda TransactionTooLargeException ile çöküyordu
         web.loadUrl(SITE);
         web.postDelayed(this::hideSplash, 6000);
-
-        // Önceki çökme varsa raporu göster (App.java kaydeder)
-        try {
-            SharedPreferences cp = getSharedPreferences("crash", MODE_PRIVATE);
-            final String c = cp.getString("last", null);
-            if (c != null) {
-                cp.edit().remove("last").apply();
-                root.post(() -> ankaDialog("ÇÖKME RAPORU",
-                    c.substring(0, Math.min(c.length(), 900)),
-                    null, "TAMAM", null, (ok, t) -> { }));
-            }
-        } catch (Throwable ignored) { }
     }
 
     @Override
@@ -1117,7 +1082,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        try { unregisterReceiver(dlReceiver); } catch (Exception ignored) { }
+        if (receiverRegistered) {
+            try { unregisterReceiver(dlReceiver); } catch (Exception ignored) { }
+        }
         if (ringAnim != null) ringAnim.cancel();
         if (pulseAnim != null) pulseAnim.cancel();
         super.onDestroy();
@@ -1125,8 +1092,8 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web != null && loader != null && loader.getVisibility() == View.VISIBLE) {
-            hideLoader(); // Takılan yükleme animasyonunu zorla kapatır
+        if (loader != null && loader.getVisibility() == View.VISIBLE) {
+            hideLoader();
         }
         if (web == null) {
             super.onBackPressed();
