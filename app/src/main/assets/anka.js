@@ -5,6 +5,10 @@
 
   // ---- AYARLAR ----
   var MENU_WORDS = ['FOTO', 'VİDEO', 'VIDEO', 'DOSYA']; // + menüsündeki yazılar
+  var SPIN_DELAY = 600;   // ms: yükleme bu kadar sürerse halka çıksın
+  var SPIN_MAX = 4000;    // ms: halka bir seferde en fazla bu kadar görünsün
+  // Canlı veri (Firebase vb.) istekleri halkayı tetiklemesin, topluluk bölümü kasmasın
+  var SKIP_URL = /firebaseio\.com|firebasedatabase\.app|googleapis\.com|gstatic\.com/i;
 
   // ---- 1) Yakınlaştırmayı kapat, ölçüyü sabitle ----
   try {
@@ -17,9 +21,10 @@
     vp.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
   } catch (e) {}
 
-  // ---- 2) CSS: sadece menü düzeltmesi ----
+  // ---- 2) Genel CSS düzeltmeleri ----
   var css = '' +
-    'html{-webkit-tap-highlight-color:transparent;}' +
+    'html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}' +
+    '*{-webkit-tap-highlight-color:transparent;}' +
     'body{overscroll-behavior-y:none;}' +
     '.anka-fx-menuitem{white-space:nowrap !important;overflow:visible !important;' +
     'min-width:max-content;display:flex;flex-direction:column;align-items:center;' +
@@ -35,7 +40,9 @@
     document.head.appendChild(st);
   } catch (e) {}
 
-  // ---- 3) FOTO / VİDEO / DOSYA menüsünü bul ve düzelt (sadece tıklama sonrası) ----
+  // ---- 3) FOTO / VİDEO / DOSYA menüsünü bul ve düzelt ----
+  // Eski sürüm her DOM değişikliğinde tüm sayfayı tarıyordu (topluluk akışında kasıyordu).
+  // Bu sürüm sadece metin düğümlerine bakar ve sadece dokunma/tıklama sonrası çalışır.
   function norm(t) {
     return t.replace(/\s+/g, ' ').trim().toUpperCase();
   }
@@ -106,7 +113,135 @@
     setTimeout(run, 700);
   }, true);
 
-  // ---- 4) İndirme dosya adını yakala (blob indirmeleri için) ----
+  // ---- 4) Yavaş yüklenince dönen halka (Android 9 uyumlu eski pozisyon kodları) ----
+  var pending = 0, spinTimer = null, maxTimer = null, unloadTimer = null, suppressed = false;
+  var sp = null;
+
+  try {
+    var sc = document.createElement('style');
+    sc.textContent =
+      '#anka-spin{position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483647;display:none;' +
+      'align-items:center;justify-content:center;background:rgba(5,8,16,.45);' +
+      'pointer-events:none;}' +
+      '#anka-spin.on{display:flex;}' +
+      '#anka-spin i{width:56px;height:56px;border-radius:50%;will-change:transform;' +
+      'border:4px solid rgba(0,229,255,.2);border-top-color:#00e5ff;' +
+      'animation:ankaSpin .8s linear infinite;}' +
+      '@keyframes ankaSpin{to{transform:rotate(360deg);}}';
+    document.head.appendChild(sc);
+
+    sp = document.createElement('div');
+    sp.id = 'anka-spin';
+    sp.innerHTML = '<i></i>';
+    document.body.appendChild(sp);
+  } catch (e) { sp = null; }
+
+  function spinOff() {
+    try { if (sp) sp.classList.remove('on'); } catch (e) {}
+  }
+
+  function spinStart() {
+    pending++;
+    if (!spinTimer) {
+      spinTimer = setTimeout(function () {
+        spinTimer = null;
+        if (pending > 0 && !suppressed && sp && !sp.classList.contains('on')) {
+          sp.classList.add('on');
+          clearTimeout(maxTimer);
+          maxTimer = setTimeout(function () {
+            suppressed = true; // bu yükleme turunda tekrar çıkmasın
+            spinOff();
+          }, SPIN_MAX);
+        }
+      }, SPIN_DELAY);
+    }
+  }
+
+  function spinEnd() {
+    pending = Math.max(0, pending - 1);
+    if (pending === 0) {
+      clearTimeout(spinTimer);
+      spinTimer = null;
+      clearTimeout(maxTimer);
+      maxTimer = null;
+      suppressed = false;
+      spinOff();
+    }
+  }
+
+  function urlOf(a) {
+    try { return typeof a === 'string' ? a : ((a && a.url) || ''); } catch (e) { return ''; }
+  }
+
+  // fetch isteklerini izle
+  if (window.fetch) {
+    var _fetch = window.fetch;
+    window.fetch = function () {
+      if (SKIP_URL.test(urlOf(arguments[0]))) return _fetch.apply(this, arguments);
+      spinStart();
+      var p;
+      try {
+        p = _fetch.apply(this, arguments);
+      } catch (e) {
+        spinEnd();
+        throw e;
+      }
+      return p.then(
+        function (r) { spinEnd(); return r; },
+        function (e) { spinEnd(); throw e; }
+      );
+    };
+  }
+
+  // XHR isteklerini izle
+  if (window.XMLHttpRequest && XMLHttpRequest.prototype.send) {
+    var _open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (m, u) {
+      try { this.__ankaUrl = String(u); } catch (e) {}
+      return _open.apply(this, arguments);
+    };
+    var _send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function () {
+      if (SKIP_URL.test(this.__ankaUrl || '')) return _send.apply(this, arguments);
+      var xhr = this;
+      var done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        spinEnd();
+      }
+      spinStart();
+      try {
+        xhr.addEventListener('loadend', finish);
+      } catch (e) {
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) finish();
+        };
+      }
+      try {
+        return _send.apply(this, arguments);
+      } catch (e) {
+        finish();
+        throw e;
+      }
+    };
+  }
+
+  // Sayfa değişirken göster (indirme / dış link olursa takılı kalmasın)
+  window.addEventListener('beforeunload', function () {
+    try {
+      if (sp) sp.classList.add('on');
+      clearTimeout(unloadTimer);
+      unloadTimer = setTimeout(function () {
+        if (pending === 0) spinOff();
+      }, 4000);
+    } catch (e) {}
+  });
+  window.addEventListener('pageshow', function () {
+    try { if (pending === 0) spinOff(); } catch (e) {}
+  });
+
+  // ---- 5) İndirme dosya adını yakala (blob indirmeleri için) ----
   document.addEventListener('click', function (e) {
     try {
       var target = e.target;
@@ -130,7 +265,7 @@
     };
   }
 
-  // ---- 5) Bildirimler için giriş yapan kullanıcıyı uygulamaya bildir ----
+  // ---- 6) Bildirimler için giriş yapan kullanıcıyı uygulamaya bildir ----
   function syncUser() {
     try {
       var u = localStorage.getItem('anka_isLogged') === 'true'
