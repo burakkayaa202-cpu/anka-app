@@ -213,8 +213,8 @@ public class MainActivity extends Activity {
         ring = new View(this);
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.RING);
-        g.setThickness(dp(4));
-        g.setInnerRadius(dp(46));
+        if (Build.VERSION.SDK_INT >= 29) g.setThickness(dp(4));
+if (Build.VERSION.SDK_INT >= 29) g.setInnerRadius(dp(46));
         g.setUseLevel(false);
         g.setGradientType(GradientDrawable.SWEEP_GRADIENT);
         g.setColors(new int[]{Color.parseColor("#0000E5FF"), Color.parseColor("#FF00E5FF")});
