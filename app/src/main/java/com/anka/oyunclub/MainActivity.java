@@ -951,6 +951,16 @@ public class MainActivity extends Activity {
                     showOffline();
                 }
             }
+            @Override
+public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
+    try {
+        if (root != null) root.removeView(v);
+        v.destroy();
+    } catch (Throwable ignored) { }
+    web = null;
+    recreate();
+    return true;
+}
         });
 
         web.setWebChromeClient(new WebChromeClient() {
