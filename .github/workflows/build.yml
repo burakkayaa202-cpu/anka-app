@@ -16,7 +16,8 @@ jobs:
           gradle-version: 8.5
       - run: base64 -d anka-key.txt > app/anka.jks
       - run: gradle assembleDebug
+      - run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Anka.apk
       - uses: actions/upload-artifact@v4
         with:
           name: AnkaOyunClub-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/Anka.apk
