@@ -79,6 +79,7 @@ public class MainActivity extends Activity {
     private static final String SITE_HOST = "ankaoyunclub.blogspot.com";
     private static final int PICK = 1;
     private static final int PERM_STORAGE = 2;
+    private static final int PERM_READ_MEDIA = 4;
 
     private FrameLayout root;
     private WebView web;
@@ -214,7 +215,7 @@ public class MainActivity extends Activity {
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.RING);
         if (Build.VERSION.SDK_INT >= 29) g.setThickness(dp(4));
-if (Build.VERSION.SDK_INT >= 29) g.setInnerRadius(dp(46));
+        if (Build.VERSION.SDK_INT >= 29) g.setInnerRadius(dp(46));
         g.setUseLevel(false);
         g.setGradientType(GradientDrawable.SWEEP_GRADIENT);
         g.setColors(new int[]{Color.parseColor("#0000E5FF"), Color.parseColor("#FF00E5FF")});
@@ -874,7 +875,9 @@ if (Build.VERSION.SDK_INT >= 29) g.setInnerRadius(dp(46));
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
-        s.setAllowFileAccess(false);
+        // DÜZELTME: bazı galeriler file:// yolu döndürüyor; false iken video/dosya okunamıyordu.
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
         s.setLoadsImagesAutomatically(true);
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
@@ -951,16 +954,22 @@ if (Build.VERSION.SDK_INT >= 29) g.setInnerRadius(dp(46));
                     showOffline();
                 }
             }
+
             @Override
-public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
-    try {
-        if (root != null) root.removeView(v);
-        v.destroy();
-    } catch (Throwable ignored) { }
-    web = null;
-    recreate();
-    return true;
-}
+            public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
+                try {
+                    if (root != null) root.removeView(v);
+                    v.destroy();
+                } catch (Throwable ignored) { }
+                web = null;
+                // DÜZELTME: sorunun bellek olup olmadığı anlaşılsın diye bilgi ver
+                try {
+                    Toast.makeText(MainActivity.this,
+                        "Sayfa bellek yüzünden yenilendi (büyük dosya?)", Toast.LENGTH_LONG).show();
+                } catch (Throwable ignored) { }
+                recreate();
+                return true;
+            }
         });
 
         web.setWebChromeClient(new WebChromeClient() {
@@ -999,6 +1008,15 @@ public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDe
                     filePathCallback.onReceiveValue(null);
                     filePathCallback = null;
                 }
+
+                // DÜZELTME: Android 6-12'de galeriden dosya okumak için depolama izni (ilk seferde sorar)
+                if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT < 33
+                    && MainActivity.this.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+                       != PackageManager.PERMISSION_GRANTED) {
+                    MainActivity.this.requestPermissions(
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, PERM_READ_MEDIA);
+                }
+
                 filePathCallback = cb;
                 try {
                     Intent intent = params.createIntent();
@@ -1048,21 +1066,11 @@ public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDe
     protected void onActivityResult(int req, int res, Intent data) {
         if (req == PICK) {
             if (filePathCallback == null) return;
+            // DÜZELTME: seçici sonucunu resmi yöntemle oku
             Uri[] result = null;
-            if (res == RESULT_OK) {
-                if (data != null) {
-                    String dataString = data.getDataString();
-                    if (dataString != null) {
-                        result = new Uri[]{Uri.parse(dataString)};
-                    } else if (data.getClipData() != null) {
-                        int count = data.getClipData().getItemCount();
-                        result = new Uri[count];
-                        for (int i = 0; i < count; i++) {
-                            result[i] = data.getClipData().getItemAt(i).getUri();
-                        }
-                    }
-                }
-            }
+            try {
+                result = WebChromeClient.FileChooserParams.parseResult(res, data);
+            } catch (Throwable ignored) { }
             filePathCallback.onReceiveValue(result);
             filePathCallback = null;
         } else {
