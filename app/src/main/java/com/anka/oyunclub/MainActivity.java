@@ -805,9 +805,20 @@ public class MainActivity extends Activity {
         }
     }
 
+    // TEST: bildirim kontrol sonucunu uygulama içinde pencerede göster
+    private void showDebugText() {
+        if (!AnkaNotifyJob.DEBUG || dead()) return;
+        SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
+        String t = sp.getString("dbg_text", "");
+        if (t == null || t.isEmpty()) return;
+        sp.edit().remove("dbg_text").apply();
+        ankaDialog("ANKA DEBUG", t, null, "TAMAM", null, (ok, x) -> { });
+    }
+
     // TEST: hemen bir deneme bildirimi at + bildirim kontrol işini 1 sn sonra çalıştır
     private void debugRun() {
         if (!AnkaNotifyJob.DEBUG) return;
+        if (web != null) web.postDelayed(this::showDebugText, 8000);
         try {
             AnkaNotifyJob.show(this, 7778, "ANKA TEST", "Bildirimler çalışıyor");
         } catch (Throwable ignored) { }
@@ -1160,6 +1171,7 @@ public class MainActivity extends Activity {
         super.onResume();
         foreground = true;
         if (web != null) web.onResume();
+        showDebugText();
         if (pendingInstall != null && Build.VERSION.SDK_INT >= 26
             && getPackageManager().canRequestPackageInstalls()) {
             Uri u = pendingInstall;
