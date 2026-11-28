@@ -41,7 +41,13 @@ public class AnkaNotifyJob extends JobService {
             try {
                 try { check(); } catch (Throwable t) { dbg.append("\ncheck hata: ").append(t); }
                 try { checkUpdateNotification(); } catch (Throwable t) { dbg.append("\nguncelleme hata: ").append(t); }
-                if (DEBUG) show(this, 7777, "ANKA DEBUG", dbg.toString());
+                if (DEBUG) {
+                    try {
+                        getSharedPreferences("anka", MODE_PRIVATE)
+                            .edit().putString("dbg_text", dbg.toString()).commit();
+                    } catch (Throwable ignored) { }
+                    show(this, 7777, "ANKA DEBUG", dbg.toString());
+                }
             } finally {
                 try { jobFinished(params, false); } catch (Throwable ignored) { }
             }
