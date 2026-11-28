@@ -792,6 +792,16 @@ public class MainActivity extends Activity {
         try {
             JobScheduler js = (JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
             if (js == null) return;
+            // TEST: uygulama açılınca ~8 sn sonra bir kez hemen çalıştır (AnkaNotifyJob.DEBUG açıkken)
+            if (AnkaNotifyJob.DEBUG) {
+                try {
+                    js.schedule(new JobInfo.Builder(1002, new ComponentName(this, AnkaNotifyJob.class))
+                        .setMinimumLatency(8000)
+                        .setOverrideDeadline(20000)
+                        .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                        .build());
+                } catch (Throwable ignored) { }
+            }
             if (Build.VERSION.SDK_INT >= 24 && js.getPendingJob(1001) != null) return;
             JobInfo job = new JobInfo.Builder(1001, new ComponentName(this, AnkaNotifyJob.class))
                 .setPeriodic(15 * 60 * 1000L)
