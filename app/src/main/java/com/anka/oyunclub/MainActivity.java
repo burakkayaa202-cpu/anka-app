@@ -900,6 +900,13 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setDatabaseEnabled(true);
 
+        // CAPTCHA muafiyet çerezi WebView'da kalsın
+        try {
+            CookieManager cm = CookieManager.getInstance();
+            cm.setAcceptCookie(true);
+            if (Build.VERSION.SDK_INT >= 21) cm.setAcceptThirdPartyCookies(web, true);
+        } catch (Throwable ignored) { }
+
         web.addJavascriptInterface(new AnkaBridge(), "AnkaBridge");
         scheduleNotifyJob();
 
@@ -925,9 +932,17 @@ public class MainActivity extends Activity {
                 boolean isWeb = "http".equals(scheme) || "https".equals(scheme);
                 if (isWeb && isSiteHost(u.getHost())) return false;
 
+                // Google "olağan dışı trafik" (CAPTCHA) sayfası uygulama içinde çözülsün
+                String gh = u.getHost();
+                String gp = u.getPath();
+                if (isWeb && gh != null && gp != null
+                    && (gh.endsWith("google.com") || gh.endsWith("google.com.tr"))
+                    && (gp.startsWith("/sorry") || gp.startsWith("/recaptcha"))) {
+                    return false;
+                }
+
                 // Sayfa kendiliğinden yönleniyorsa (dokunma yok) uygulama içinde kal
                 if (isWeb && (!r.hasGesture() || !r.isForMainFrame())) {
-                    Toast.makeText(MainActivity.this, "YONLENDI: " + u, Toast.LENGTH_LONG).show(); // test için, sonra sil
                     return false;
                 }
                 try {
