@@ -514,6 +514,9 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         super.onRequestPermissionsResult(code, perms, results);
+        if (code == 3 && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+            debugRun();
+        }
         if (code == PERM_STORAGE && pendingDl != null) {
             String[] p = pendingDl;
             pendingDl = null;
@@ -555,9 +558,17 @@ public class MainActivity extends Activity {
         public void setUser(String user) {
             final String u = user == null ? "" : user.trim();
             if (AnkaNotifyJob.DEBUG && dbgUserCalls < 3) {
+                final boolean first = (dbgUserCalls == 0);
                 dbgUserCalls++;
-                runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                    "SETUSER: [" + u + "]", Toast.LENGTH_LONG).show());
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this,
+                        "SETUSER: [" + u + "]", Toast.LENGTH_LONG).show();
+                    if (first && !u.isEmpty() && (Build.VERSION.SDK_INT < 33
+                        || checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                           == PackageManager.PERMISSION_GRANTED)) {
+                        debugRun();
+                    }
+                });
             }
             SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
             if (!u.equals(sp.getString("user", ""))) {
@@ -794,6 +805,23 @@ public class MainActivity extends Activity {
         }
     }
 
+    // TEST: hemen bir deneme bildirimi at + bildirim kontrol işini 1 sn sonra çalıştır
+    private void debugRun() {
+        if (!AnkaNotifyJob.DEBUG) return;
+        try {
+            AnkaNotifyJob.show(this, 7778, "ANKA TEST", "Bildirimler çalışıyor");
+        } catch (Throwable ignored) { }
+        try {
+            JobScheduler js = (JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
+            if (js == null) return;
+            js.schedule(new JobInfo.Builder(1002, new ComponentName(this, AnkaNotifyJob.class))
+                .setMinimumLatency(1000)
+                .setOverrideDeadline(5000)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .build());
+        } catch (Throwable ignored) { }
+    }
+
     private void scheduleNotifyJob() {
         try {
             JobScheduler js = (JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
@@ -823,7 +851,7 @@ public class MainActivity extends Activity {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
         html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
         html += "<p style='opacity:.8;'>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>";
-        html += "<button onclick=\"location.href='" + SITE + "/ncr'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;'>Yeniden Bağlan</button>";
+        html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;'>Yeniden Bağlan</button>";
         html += "</body></html>";
         web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
     }
@@ -1100,8 +1128,7 @@ public class MainActivity extends Activity {
             }
         });
 
-        // /ncr: Blogger'ın ülkeye göre .com.tr yönlendirmesini kapatır
-        web.loadUrl(SITE + "/ncr");
+        web.loadUrl(SITE);
         web.postDelayed(this::hideSplash, 6000);
     }
 
