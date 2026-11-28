@@ -77,13 +77,15 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final String SITE = "https://ankaoyunclub.blogspot.com";
     private static final String SITE_HOST = "ankaoyunclub.blogspot.com";
-    private boolean isSiteHost(String host) {
-    return host != null && (host.equals(SITE_HOST)
-        || host.startsWith("ankaoyunclub.blogspot."));
-}
     private static final int PICK = 1;
     private static final int PERM_STORAGE = 2;
     private static final int PERM_READ_MEDIA = 4;
+
+    // ankaoyunclub.blogspot.com ve ülke uzantılı hali (.com.tr vb.) uygulama içinde açılsın
+    private boolean isSiteHost(String host) {
+        return host != null && (host.equals(SITE_HOST)
+            || host.startsWith("ankaoyunclub.blogspot."));
+    }
 
     private FrameLayout root;
     private WebView web;
@@ -805,7 +807,7 @@ public class MainActivity extends Activity {
         String html = "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b1120;color:#e6faff;font-family:sans-serif;text-align:center;padding:24px;'>";
         html += "<h1 style='color:#00e5ff;letter-spacing:2px;'>ANKA APK</h1>";
         html += "<p style='opacity:.8;'>Bağlantı koptu!<br>Anka'ya ulaşmak için internetini kontrol et.</p>";
-        html += "<button onclick=\"location.href='" + SITE + "'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;'>Yeniden Bağlan</button>";
+        html += "<button onclick=\"location.href='" + SITE + "/ncr'\" style='margin-top:24px;padding:14px 32px;border:2px solid #00e5ff;border-radius:30px;background:transparent;color:#00e5ff;font-size:16px;font-weight:bold;'>Yeniden Bağlan</button>";
         html += "</body></html>";
         web.loadDataWithBaseURL(SITE, html, "text/html", "UTF-8", null);
     }
@@ -923,7 +925,6 @@ public class MainActivity extends Activity {
                 String host = u.getHost();
                 boolean isWeb = "http".equals(scheme) || "https".equals(scheme);
                 if (isWeb && isSiteHost(host)) return false;
-                if (isWeb && SITE_HOST.equals(host)) return false;
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW, u);
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -944,7 +945,6 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView v, String url) {
                 Uri pu = url == null ? null : Uri.parse(url);
                 if (pu != null && isSiteHost(pu.getHost())) {
-                if (pu != null && SITE_HOST.equals(pu.getHost())) {
                     String js = loadFx();
                     if (!js.isEmpty()) v.evaluateJavascript(js, null);
                 }
@@ -1064,8 +1064,9 @@ public class MainActivity extends Activity {
             }
         });
 
-        web.loadUrl(SITE);
+        // /ncr: Blogger'ın ülkeye göre .com.tr yönlendirmesini kapatır
         web.loadUrl(SITE + "/ncr");
+        web.postDelayed(this::hideSplash, 6000);
     }
 
     @Override
