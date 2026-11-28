@@ -115,6 +115,7 @@ public class MainActivity extends Activity {
 
     static volatile boolean foreground = false;
     private boolean notifAsked = false;
+    private int dbgUserCalls = 0;
     private boolean receiverRegistered = false; // Alıcı çakışmasını önlemek için
 
     private interface Done { void run(boolean ok, String text); }
@@ -553,6 +554,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void setUser(String user) {
             final String u = user == null ? "" : user.trim();
+            if (AnkaNotifyJob.DEBUG && dbgUserCalls < 3) {
+                dbgUserCalls++;
+                runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                    "SETUSER: [" + u + "]", Toast.LENGTH_LONG).show());
+            }
             SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
             if (!u.equals(sp.getString("user", ""))) {
                 sp.edit().putString("user", u).apply();
