@@ -922,9 +922,14 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
                 String scheme = u.getScheme();
-                String host = u.getHost();
                 boolean isWeb = "http".equals(scheme) || "https".equals(scheme);
-                if (isWeb && isSiteHost(host)) return false;
+                if (isWeb && isSiteHost(u.getHost())) return false;
+
+                // Sayfa kendiliğinden yönleniyorsa (dokunma yok) uygulama içinde kal
+                if (isWeb && (!r.hasGesture() || !r.isForMainFrame())) {
+                    Toast.makeText(MainActivity.this, "YONLENDI: " + u, Toast.LENGTH_LONG).show(); // test için, sonra sil
+                    return false;
+                }
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW, u);
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
