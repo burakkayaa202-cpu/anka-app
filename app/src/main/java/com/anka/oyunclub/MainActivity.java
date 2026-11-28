@@ -95,6 +95,7 @@ public class MainActivity extends Activity {
     private WebChromeClient.CustomViewCallback customCallback;
     private long lastBack = 0;
     private String fxJs = null;
+    private Bitmap logoBmp = null;
 
     private LinearLayout loader;
     private View ring;
@@ -115,7 +116,7 @@ public class MainActivity extends Activity {
 
     static volatile boolean foreground = false;
     private boolean notifAsked = false;
-    private boolean receiverRegistered = false; // Alıcı çakışmasını önlemek için
+    private boolean receiverRegistered = false;
 
     private interface Done { void run(boolean ok, String text); }
 
@@ -127,23 +128,27 @@ public class MainActivity extends Activity {
         return isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed());
     }
 
+    // Logo bir kez çözülür, sonra önbellekten kullanılır
     private void setLogo(ImageView iv) {
+        if (logoBmp != null) {
+            iv.setImageBitmap(logoBmp);
+            return;
+        }
         try {
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inJustDecodeBounds = true;
             BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher, o);
-            if (o.outWidth > 0 && o.outHeight > 0) {
-                int sample = 1;
-                int max = Math.max(o.outWidth, o.outHeight);
-                while (max / sample > 256) sample *= 2;
-                BitmapFactory.Options o2 = new BitmapFactory.Options();
-                o2.inSampleSize = sample;
-                o2.inScaled = false;
-                Bitmap bm = BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher, o2);
-                if (bm != null) {
-                    iv.setImageBitmap(bm);
-                    return;
-                }
+            int sample = 1;
+            int max = Math.max(o.outWidth, o.outHeight);
+            while (max / sample > 256) sample *= 2;
+            BitmapFactory.Options o2 = new BitmapFactory.Options();
+            o2.inSampleSize = sample;
+            o2.inScaled = false;
+            Bitmap bm = BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher, o2);
+            if (bm != null) {
+                logoBmp = bm;
+                iv.setImageBitmap(bm);
+                return;
             }
         } catch (Throwable ignored) { }
         try { iv.setImageResource(R.drawable.ic_launcher); } catch (Throwable ignored) { }
@@ -185,7 +190,8 @@ public class MainActivity extends Activity {
         setContentView(box);
     }
 
-    private String loadFx() {
+    // anka.js arka planda önceden okunur, sayfa açılınca hazır olur
+    private synchronized String loadFx() {
         if (fxJs != null) return fxJs;
         try {
             InputStream in = getAssets().open("anka.js");
@@ -510,6 +516,19 @@ public class MainActivity extends Activity {
         }
     };
 
+    private void registerDlReceiver() {
+        if (receiverRegistered || dead()) return;
+        try {
+            IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(dlReceiver, f, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(dlReceiver, f);
+            }
+            receiverRegistered = true;
+        } catch (Throwable ignored) { }
+    }
+
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         super.onRequestPermissionsResult(code, perms, results);
@@ -554,12 +573,16 @@ public class MainActivity extends Activity {
         public void setUser(String user) {
             final String u = user == null ? "" : user.trim();
             SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
-            if (!u.equals(sp.getString("user", ""))) {
+            final boolean changed = !u.equals(sp.getString("user", ""));
+            if (changed) {
                 sp.edit().putString("user", u).apply();
             }
             if (!u.isEmpty()) runOnUiThread(() -> {
                 askNotifPermission();
                 askBatteryExemption();
+                // Kullanıcı yeni belirlendiyse hemen bir kontrol çalıştır:
+                // böylece "son bildirim" başlangıç noktası beklemeden kaydedilir
+                if (changed) kickNotifyJob();
             });
         }
 
@@ -806,6 +829,18 @@ public class MainActivity extends Activity {
         } catch (Throwable ignored) { }
     }
 
+    // Bildirim kontrolünü hemen (birkaç saniye içinde) bir kez çalıştırır
+    private void kickNotifyJob() {
+        try {
+            JobScheduler js = (JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
+            if (js == null) return;
+            js.schedule(new JobInfo.Builder(1004, new ComponentName(this, AnkaNotifyJob.class))
+                .setOverrideDeadline(3000)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .build());
+        } catch (Throwable ignored) { }
+    }
+
     private void scheduleNotifyJob() {
         try {
             JobScheduler js = (JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
@@ -868,6 +903,9 @@ public class MainActivity extends Activity {
             }
         } catch (Throwable ignored) { }
 
+        // anka.js'i arka planda önceden oku
+        new Thread(this::loadFx).start();
+
         int dark = Color.parseColor("#0B1120");
         getWindow().setStatusBarColor(dark);
         getWindow().setNavigationBarColor(dark);
@@ -926,18 +964,6 @@ public class MainActivity extends Activity {
         } catch (Throwable ignored) { }
 
         web.addJavascriptInterface(new AnkaBridge(), "AnkaBridge");
-        scheduleNotifyJob();
-
-        // Android 9 için güvenli BroadcastReceiver kaydı
-        try {
-            IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-            if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(dlReceiver, f, Context.RECEIVER_EXPORTED);
-            } else {
-                registerReceiver(dlReceiver, f);
-            }
-            receiverRegistered = true;
-        } catch (Throwable ignored) { }
 
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) ->
             askDownload(url, userAgent, contentDisposition, mimetype));
@@ -977,6 +1003,12 @@ public class MainActivity extends Activity {
             public void onPageStarted(WebView v, String url, Bitmap favicon) {
                 super.onPageStarted(v, url, favicon);
                 scheduleLoader();
+            }
+
+            // Sayfa görünür olur olmaz splash kalksın
+            @Override
+            public void onPageCommitVisible(WebView v, String url) {
+                hideSplash();
             }
 
             @Override
@@ -1103,6 +1135,13 @@ public class MainActivity extends Activity {
 
         web.loadUrl(SITE);
         web.postDelayed(this::hideSplash, 6000);
+
+        // Ağır olmayan işler sayfa yüklenmeye başladıktan sonra yapılır
+        web.postDelayed(() -> {
+            if (dead()) return;
+            scheduleNotifyJob();
+            registerDlReceiver();
+        }, 1500);
     }
 
     @Override
@@ -1144,6 +1183,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         if (receiverRegistered) {
             try { unregisterReceiver(dlReceiver); } catch (Exception ignored) { }
+            receiverRegistered = false;
         }
         if (ringAnim != null) ringAnim.cancel();
         if (pulseAnim != null) pulseAnim.cancel();
