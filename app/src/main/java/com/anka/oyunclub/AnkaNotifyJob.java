@@ -24,16 +24,24 @@ import java.util.Iterator;
 import java.util.List;
 
 public class AnkaNotifyJob extends JobService {
+    // TEST MODU: true iken her çalışmada "ANKA DEBUG" bildirimi atar. Sorun çözülünce false yap.
+    static final boolean DEBUG = true;
+
     private static final String DB = "https://anka-apk-default-rtdb.firebaseio.com";
     private static final String CHANNEL = "anka_bildirim";
     private static final String REPO = "burakkayaa202-cpu/anka-app";
+
+    private int lastCode = 0;
+    private String lastErr = "";
+    private final StringBuilder dbg = new StringBuilder();
 
     @Override
     public boolean onStartJob(final JobParameters params) {
         new Thread(() -> {
             try {
-                try { check(); } catch (Throwable ignored) { }
-                try { checkUpdateNotification(); } catch (Throwable ignored) { }
+                try { check(); } catch (Throwable t) { dbg.append("\ncheck hata: ").append(t); }
+                try { checkUpdateNotification(); } catch (Throwable t) { dbg.append("\nguncelleme hata: ").append(t); }
+                if (DEBUG) show(this, 7777, "ANKA DEBUG", dbg.toString());
             } finally {
                 try { jobFinished(params, false); } catch (Throwable ignored) { }
             }
@@ -58,11 +66,14 @@ public class AnkaNotifyJob extends JobService {
     }
 
     private JSONObject get(String url) {
+        lastCode = 0;
+        lastErr = "";
         try {
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
             c.setConnectTimeout(10000);
             c.setReadTimeout(10000);
-            if (c.getResponseCode() != 200) return null;
+            lastCode = c.getResponseCode();
+            if (lastCode != 200) return null;
             InputStream in = c.getInputStream();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buf = new byte[4096];
@@ -73,6 +84,7 @@ public class AnkaNotifyJob extends JobService {
             if (s.isEmpty() || s.equals("null")) return null;
             return new JSONObject(s);
         } catch (Throwable t) {
+            lastErr = t.getClass().getSimpleName();
             return null;
         }
     }
@@ -85,7 +97,13 @@ public class AnkaNotifyJob extends JobService {
             c.setConnectTimeout(8000);
             c.setReadTimeout(8000);
             c.setRequestProperty("Accept", "application/vnd.github+json");
-            if (c.getResponseCode() != 200) return;
+            c.setRequestProperty("User-Agent", "AnkaApp");
+            int code = c.getResponseCode();
+            dbg.append("\n[GUNCELLEME] github http=").append(code);
+            if (code != 200) {
+                if (code == 404) dbg.append(" (GitHub'da yayinlanmis Release yok)");
+                return;
+            }
             InputStream in = c.getInputStream();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buf = new byte[4096];
@@ -94,6 +112,7 @@ public class AnkaNotifyJob extends JobService {
             in.close();
             JSONObject j = new JSONObject(out.toString("UTF-8"));
             String tag = j.optString("tag_name", "");
+            dbg.append(" tag=").append(tag).append(" uygulama=").append(appVersion());
 
             if (!tag.isEmpty() && isNewer(tag, appVersion())) {
                 SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
@@ -103,9 +122,16 @@ public class AnkaNotifyJob extends JobService {
                     sp.edit().putString("last_notified_version", tag).apply();
                     show(this, 9999, "🚀 Yeni Sürüm Çıktı: " + tag,
                         "Anka APK'nın yeni sürümü hazır, hemen indir!");
+                    dbg.append(" -> bildirim gonderildi");
+                } else {
+                    dbg.append(" -> bu surum icin bildirim zaten gonderilmis");
                 }
+            } else {
+                dbg.append(" -> yeni surum yok");
             }
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) {
+            dbg.append("\n[GUNCELLEME] hata: ").append(t.getClass().getSimpleName());
+        }
     }
 
     private boolean isNewer(String remote, String local) {
@@ -126,7 +152,11 @@ public class AnkaNotifyJob extends JobService {
         try {
             SharedPreferences sp = getSharedPreferences("anka", MODE_PRIVATE);
             String user = sp.getString("user", "");
-            if (user.isEmpty()) return;
+            if (user.isEmpty()) {
+                dbg.append("[BILDIRIM] user=BOS (uygulamada giris yok ya da site kullaniciyi kaydetmedi)");
+                return;
+            }
+            dbg.append("[BILDIRIM] user=").append(user);
 
             String base = DB + "/notifications/" + Uri.encode(user) + ".json?orderBy=%22%24key%22";
             String prefKey = "last_" + user;
@@ -134,17 +164,31 @@ public class AnkaNotifyJob extends JobService {
 
             if (last.isEmpty()) {
                 JSONObject first = get(base + "&limitToLast=1");
+                if (lastCode != 200) {
+                    dbg.append(" firebase http=").append(lastCode).append(" ").append(lastErr);
+                    if (lastCode == 401) dbg.append(" (Firebase kurallari okumayi engelliyor)");
+                    return;
+                }
                 String newest = "-";
                 if (first != null) {
                     Iterator<String> it = first.keys();
                     if (it.hasNext()) newest = it.next();
                 }
                 sp.edit().putString(prefKey, newest).apply();
+                dbg.append(" ilk calisma, son bildirim=").append(newest);
                 return;
             }
 
             JSONObject res = get(base + "&startAt=%22" + Uri.encode(last) + "%22");
-            if (res == null) return;
+            if (lastCode != 200) {
+                dbg.append(" firebase http=").append(lastCode).append(" ").append(lastErr);
+                if (lastCode == 401) dbg.append(" (Firebase kurallari okumayi engelliyor)");
+                return;
+            }
+            if (res == null) {
+                dbg.append(" yeni bildirim yok");
+                return;
+            }
 
             List<String> keys = new ArrayList<>();
             Iterator<String> it = res.keys();
@@ -152,11 +196,15 @@ public class AnkaNotifyJob extends JobService {
                 String k = it.next();
                 if (k != null && k.compareTo(last) > 0) keys.add(k);
             }
+            dbg.append(" yeni=").append(keys.size());
             if (keys.isEmpty()) return;
             Collections.sort(keys);
             sp.edit().putString(prefKey, keys.get(keys.size() - 1)).apply();
 
-            if (MainActivity.foreground) return;
+            if (MainActivity.foreground) {
+                dbg.append(" (uygulama acik oldugu icin bildirim gosterilmedi)");
+                return;
+            }
 
             if (keys.size() > 5) {
                 show(this, 1, "🔔 Anka", keys.size() + " yeni bildirimin var");
@@ -188,7 +236,9 @@ public class AnkaNotifyJob extends JobService {
                 }
                 show(this, k.hashCode(), title, body);
             }
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) {
+            dbg.append(" hata: ").append(t.getClass().getSimpleName());
+        }
     }
 
     static void show(Context ctx, int id, String title, String text) {
@@ -212,7 +262,7 @@ public class AnkaNotifyJob extends JobService {
             Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(ctx, CHANNEL)
                 : new Notification.Builder(ctx);
-            
+
             b.setSmallIcon(R.drawable.ic_stat_anka)
                 .setContentTitle(title)
                 .setContentText(text)
