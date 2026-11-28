@@ -207,7 +207,7 @@ public class AnkaNotifyJob extends JobService {
             Collections.sort(keys);
             sp.edit().putString(prefKey, keys.get(keys.size() - 1)).apply();
 
-            if (MainActivity.foreground) {
+            if (MainActivity.foreground && !DEBUG) {
                 dbg.append(" (uygulama acik oldugu icin bildirim gosterilmedi)");
                 return;
             }
