@@ -77,6 +77,10 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final String SITE = "https://ankaoyunclub.blogspot.com";
     private static final String SITE_HOST = "ankaoyunclub.blogspot.com";
+    private boolean isSiteHost(String host) {
+    return host != null && (host.equals(SITE_HOST)
+        || host.startsWith("ankaoyunclub.blogspot."));
+}
     private static final int PICK = 1;
     private static final int PERM_STORAGE = 2;
     private static final int PERM_READ_MEDIA = 4;
@@ -918,6 +922,7 @@ public class MainActivity extends Activity {
                 String scheme = u.getScheme();
                 String host = u.getHost();
                 boolean isWeb = "http".equals(scheme) || "https".equals(scheme);
+                if (isWeb && isSiteHost(host)) return false;
                 if (isWeb && SITE_HOST.equals(host)) return false;
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW, u);
@@ -938,6 +943,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView v, String url) {
                 Uri pu = url == null ? null : Uri.parse(url);
+                if (pu != null && isSiteHost(pu.getHost())) {
                 if (pu != null && SITE_HOST.equals(pu.getHost())) {
                     String js = loadFx();
                     if (!js.isEmpty()) v.evaluateJavascript(js, null);
@@ -1059,7 +1065,7 @@ public class MainActivity extends Activity {
         });
 
         web.loadUrl(SITE);
-        web.postDelayed(this::hideSplash, 6000);
+        web.loadUrl(SITE + "/ncr");
     }
 
     @Override
